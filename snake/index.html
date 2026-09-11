@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Змейка</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="game-card" aria-label="Игра Змейка">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">КЛАССИЧЕСКАЯ ИГРА</p>
+          <h1>Змейка</h1>
+        </div>
+        <div class="scores" aria-live="polite">
+          <div class="score-box">
+            <span>Счёт</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="score-box">
+            <span>Рекорд</span>
+            <strong id="highScore">0</strong>
+          </div>
+        </div>
+      </header>
+
+      <div class="canvas-wrap">
+        <canvas id="game" width="360" height="300" aria-label="Игровое поле"></canvas>
+        <div id="overlay" class="overlay hidden" aria-live="polite">
+          <div class="overlay-panel">
+            <p id="overlayKicker" class="overlay-kicker">ПАУЗА</p>
+            <h2 id="overlayTitle">Игра приостановлена</h2>
+            <p id="overlayText">Нажмите пробел, чтобы продолжить.</p>
+            <button id="overlayButton" type="button">Продолжить</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="pauseButton" class="secondary" type="button">Пауза</button>
+        <button id="restartButton" type="button">Новая игра</button>
+      </div>
+
+      <div class="mobile-controls" aria-label="Экранное управление">
+        <button class="control up" data-dir="up" aria-label="Вверх">▲</button>
+        <button class="control left" data-dir="left" aria-label="Влево">◀</button>
+        <button class="control down" data-dir="down" aria-label="Вниз">▼</button>
+        <button class="control right" data-dir="right" aria-label="Вправо">▶</button>
+      </div>
+
+      <footer class="help">
+        <span>Стрелки / WASD — движение</span>
+        <span>Пробел — пауза</span>
+        <span>Enter / R — новая игра</span>
+      </footer>
+    </section>
+  </main>
+
+  <script src="snake-core.js"></script>
+  <script src="snake-motion.js"></script>
+  <script src="snake-render.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

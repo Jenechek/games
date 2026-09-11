@@ -1,6 +1,6 @@
 (() => {
-  const COLS = 12;
-  const ROWS = 10;
+  const COLS = 20;
+  const ROWS = 20;
   const CELL_TRAVEL_MS = 281.25;
   const COLLISION_GRACE_MS = 400;
   const TRAIL_SAMPLE_SPACING = 0.075;

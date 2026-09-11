@@ -94,7 +94,7 @@ h1 {
 
 .canvas-wrap {
   position: relative;
-  width: 600px;
+  width: 420px;
   max-width: 100%;
   margin-inline: auto;
   overflow: hidden;
@@ -105,7 +105,7 @@ h1 {
 
 canvas {
   display: block;
-  width: 600px;
+  width: 420px;
   max-width: 100%;
   height: auto;
   aspect-ratio: 1 / 1;

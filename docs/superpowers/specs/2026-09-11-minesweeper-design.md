@@ -10,11 +10,13 @@ Add a second browser game, Minesweeper (`Сапёр`), alongside the existing Sn
 
 ## Difficulty presets
 
+Dimensions are specified as **columns × rows**.
+
 Use the classic Microsoft Minesweeper sizes and mine counts:
 
 - Easy (`Лёгкий`): 8×8 board, 10 mines.
 - Medium (`Средний`): 16×16 board, 40 mines.
-- Hard (`Сложный`): 30×16 board, 99 mines.
+- Hard (`Сложный`): 30×16 board (30 columns wide, 16 rows high), 99 mines.
 
 Difficulty changes start a fresh game immediately.
 
@@ -23,6 +25,7 @@ Difficulty changes start a fresh game immediately.
 - Mines are placed only after the first opening action so the first opened cell is always safe.
 - The four extreme corner cells are always non-mine cells.
 - Corner cells otherwise participate normally in the game: they can be opened, flagged, counted by neighboring numbers, and are part of the win condition.
+- Before they are opened, corner cells look exactly like ordinary closed cells. There is no permanent corner marker or visual indication of their safety.
 - The board is not required to be solvable without guessing.
 - A left click opens a closed, unflagged cell.
 - A right click toggles a flag on a closed cell.
@@ -64,6 +67,7 @@ Primary visual characteristics:
 - Raised dark board tiles with lighter revealed tiles.
 - Classic number color hierarchy: distinct colors for 1–8, with blue/green/red clearly preserved for 1/2/3.
 - Red flags.
+- The mockup's visually highlighted corner tiles are not literal gameplay UI; in the implemented game, closed corner cells use the same appearance as every other closed cell.
 - Responsive layout that keeps the full board usable on desktop and smaller screens. The hard 30×16 board may scale its cells down to fit available width, but all cells remain square.
 - Decorative background elements from the mockup may be simplified in implementation; gameplay clarity takes priority over decorative fidelity.
 
@@ -72,6 +76,8 @@ The new game should visually belong to the same overall site collection but does
 ## Mascot states and animation
 
 The central restart control is a simple cartoon sapper face wearing the same green helmet with white shield emblem shown in the approved design. The character identity, proportions, palette, and helmet design remain consistent across states; only expression and small motion accents change.
+
+The mascot should be implemented as scalable vector/CSS UI artwork rather than as a full-screen raster mockup so the same character can change expression cleanly across states and remain sharp at different sizes.
 
 Required states:
 
@@ -257,6 +263,7 @@ Minimum automated coverage:
 - exact mine count after generation
 - first-click safety
 - all four corners always safe
+- closed corners have no special gameplay-visible state before opening
 - corners still counted normally by adjacent cells
 - flag placement/removal rules
 - opening blocked on flagged cells
@@ -292,8 +299,8 @@ UI verification should additionally confirm:
 The feature is accepted when:
 
 1. `minesweeper/` is available as a standalone browser game through GitHub Pages.
-2. Easy, Medium, and Hard exactly match 8×8/10, 16×16/40, and 30×16/99.
-3. First opened cell and all four corner cells are always mine-free.
+2. Easy, Medium, and Hard exactly match 8×8/10, 16×16/40, and 30×16/99, with dimensions interpreted as columns × rows.
+3. First opened cell and all four corner cells are always mine-free, while closed corner cells remain visually indistinguishable from ordinary closed cells.
 4. Classic open, flag, unflag, and chord controls work correctly.
 5. Timer, mine counter, restart, win, and loss states work correctly.
 6. Reveal, flag placement, flag removal, and mine explosion each have visibly distinct animations.

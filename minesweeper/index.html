@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1118">
+  <title>Сапёр</title>
+  <link rel="stylesheet" href="minesweeper.css">
+</head>
+<body>
+  <main class="shell">
+    <div class="ambient ambient-left" aria-hidden="true"></div>
+    <div class="ambient ambient-right" aria-hidden="true"></div>
+    <section class="game-card" aria-label="Игра Сапёр">
+      <header class="hero">
+        <div class="hero-side hero-side-left" aria-hidden="true"><span class="mountain-mark">▰</span><span>ЧИСТОЕ ПОЛЕ<br>ЯСНЫЕ МЫСЛИ</span></div>
+        <div class="hero-title"><h1>Сапёр</h1><p class="eyebrow">ЛОГИКА <b>•</b> ТЕРПЕНИЕ <b>•</b> ПОБЕДА</p></div>
+        <div class="hero-side hero-side-right" aria-hidden="true"><span>Маленькие решения —<br>большие победы</span><i></i></div>
+      </header>
+      <nav id="difficulty" class="difficulty" aria-label="Сложность">
+        <button type="button" data-difficulty="easy">Лёгкий</button>
+        <button type="button" data-difficulty="medium" class="active">Средний</button>
+        <button type="button" data-difficulty="hard">Сложный</button>
+      </nav>
+      <section class="status-panel" aria-label="Статус игры">
+        <div class="counter-block"><span class="counter-label">МИНЫ</span><strong id="mineCount" class="digital">040</strong></div>
+        <button id="mascotButton" class="mascot-button" type="button" aria-label="Начать новую игру">
+          <span id="mascot" class="mascot" data-state="idle" aria-hidden="true">
+            <span class="mascot-rays ray-a"></span><span class="mascot-rays ray-b"></span>
+            <span class="helmet"><span class="helmet-highlight"></span><span class="shield"></span><span class="helmet-rim"></span></span>
+            <span class="ear ear-left"></span><span class="ear ear-right"></span>
+            <span class="face"><span class="brow brow-left"></span><span class="brow brow-right"></span><span class="eye eye-left"></span><span class="eye eye-right"></span><span class="mouth"></span></span>
+          </span>
+          <span id="statusText" class="mascot-caption">Новая игра</span>
+        </button>
+        <div class="counter-block"><span class="counter-label">ВРЕМЯ</span><strong id="timer" class="digital">000</strong></div>
+      </section>
+      <div class="board-frame"><div id="board" class="board" role="grid" aria-label="Минное поле"></div></div>
+      <p class="footer-copy"><span></span>ОДНО ПОЛЕ БЛИЖЕ К ПОБЕДЕ<span></span></p>
+    </section>
+  </main>
+  <script type="module" src="game.js"></script>
+</body>
+</html>

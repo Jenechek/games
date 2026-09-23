@@ -1,0 +1,2 @@
+import React,{useState} from 'react';import {useGame} from '../GameProvider';
+export function LootDialog(){const{state,commands}=useGame();const[selected,setSelected]=useState<string[]>([]);if(!state.loot)return null;return <section className="loot"><h2>Добыча</h2>{state.loot.items.map(x=><label key={x.itemId}><input type="checkbox" checked={selected.includes(x.itemId)} onChange={()=>setSelected(s=>s.includes(x.itemId)?s.filter(i=>i!==x.itemId):[...s,x.itemId])}/>{x.itemId}</label>)}<button onClick={()=>commands.takeLoot(selected)}>Забрать выбранное</button></section>}

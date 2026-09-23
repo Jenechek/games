@@ -1,0 +1,2 @@
+import React from 'react';import {useGame} from '../GameProvider';
+export function MerchantPanel(){const{state,commands}=useGame();if(state.world.locationId!=='tillanium')return null;return <section><h2>Торговец</h2><button onClick={()=>commands.buy('healing-potion',10)}>Купить лечебное зелье — 10</button><button onClick={()=>commands.sell('healing-potion',10)}>Продать лечебное зелье</button></section>}

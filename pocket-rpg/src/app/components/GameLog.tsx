@@ -1,0 +1,1 @@
+import React from 'react';import {useGame} from '../GameProvider';export function GameLog(){const{state}=useGame();return <section><h2>События</h2><div className="log">{state.log.slice(-8).map((x,i)=><div key={i}>{x}</div>)}</div></section>}

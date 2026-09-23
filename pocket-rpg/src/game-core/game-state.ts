@@ -6,6 +6,7 @@ import { createWorldState, advanceWorldTime } from "./world/travel";
 import type { WorldState } from "./world/world";
 import type { CombatState } from "./combat/types";
 import type { GameMode } from "./types";
+import type { MarketState } from "./economy/types";
 
 export interface GameState {
   character: CharacterProgression;
@@ -13,6 +14,8 @@ export interface GameState {
   inventory: InventoryState;
   world: WorldState;
   gold: number;
+  resources: { health: number; maxHealth: number; mana: number; maxMana: number; stamina: number; maxStamina: number };
+  market: MarketState;
   mode: GameMode;
   combat: CombatState | null;
   fishing: null | { locationId: string; baitId: string; cycleStartedAt: number; cycleEndsAt: number };
@@ -33,6 +36,8 @@ export function createInitialGameState(): GameState {
     },
     world: createWorldState(),
     gold: 50,
+    resources: { health: 100, maxHealth: 100, mana: 100, maxMana: 100, stamina: 100, maxStamina: 100 },
+    market: { pressure: {} },
     mode: "idle",
     combat: null,
     fishing: null,

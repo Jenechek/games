@@ -2,15 +2,8 @@ import type { GameState } from "../game-state";
 import { itemDefinitions } from "../../content/items";
 import { cityDefinitions } from "../../content/cities";
 import { merchantDefinitions } from "../../content/merchants";
-
-export interface MarketPressure {
-  multiplier: number;
-  updatedAt: number;
-}
-
-export interface MarketState {
-  pressure: Record<string, MarketPressure>;
-}
+import type { MarketPressure, MarketState } from "./types";
+export type { MarketPressure, MarketState } from "./types";
 
 export function createMarketState(): MarketState {
   return { pressure: {} };

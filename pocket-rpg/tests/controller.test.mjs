@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createNewGame,travelCommand,tickGame} from '../dist/app/game-controller.js';import {SeededRng} from '../dist/game-core/rng.js';
+test('new game starts in Tillanium with all attributes at ten',()=>{const g=createNewGame();assert.equal(g.world.locationId,'tillanium');assert.deepEqual(Object.values(g.attributes),[10,10,10,10,10,10,10,10]);});
+test('travel command and tick arrive at destination once',()=>{const g=createNewGame();const t=travelCommand(g,'city-gate',1000,new SeededRng(1));const done=tickGame(t,10000);const again=tickGame(done,10000);assert.equal(done.world.locationId,'city-gate');assert.equal(again.world.arrivalCount,1);});

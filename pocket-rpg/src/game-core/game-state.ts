@@ -24,7 +24,10 @@ export function createInitialGameState(): GameState {
     character: createCharacterProgression(),
     skills: Object.fromEntries(skillDefinitions.map((skill) => [skill.id, { level: 0, xp: 0 }])),
     inventory: {
-      instances: [{ instanceId: "starter-rod", definitionId: "simple-fishing-rod", rarity: "common", upgradeLevel: 0, statRoll: 1, properties: [] }],
+      instances: [
+        { instanceId: "starter-rod", definitionId: "simple-fishing-rod", rarity: "common", upgradeLevel: 0, statRoll: 1, properties: [] },
+        { instanceId: "starter-bait", definitionId: "bread-bait", rarity: "common", upgradeLevel: 0, statRoll: 1, properties: [] }
+      ],
       stacks: { "healing-potion": 3 },
       equipped: {}
     },

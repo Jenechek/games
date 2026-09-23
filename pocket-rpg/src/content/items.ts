@@ -1,6 +1,16 @@
 import type { ItemDefinition } from "../game-core/items/items";
 
 export const itemDefinitions: Record<string, ItemDefinition> = {
+  "bread-bait": { id: "bread-bait", name: "Хлебная наживка", kind: "bait", weight: 0.1, stackable: false, tags: ["fishing-bait"], basePrice: 4 },
+  "worm-bait": { id: "worm-bait", name: "Червь", kind: "bait", weight: 0.1, stackable: false, tags: ["fishing-bait"], basePrice: 6 },
+  "silver-carp": { id: "silver-carp", name: "Серебряный карась", kind: "material", weight: 1.2, stackable: true, basePrice: 9 },
+  "silver-carp-rare": { id: "silver-carp-rare", name: "Серебряный карась (редкий)", kind: "material", weight: 1.2, stackable: true, basePrice: 22 },
+  "river-perch": { id: "river-perch", name: "Речной окунь", kind: "material", weight: 0.9, stackable: true, basePrice: 7 },
+  "river-perch-rare": { id: "river-perch-rare", name: "Речной окунь (редкий)", kind: "material", weight: 0.9, stackable: true, basePrice: 18 },
+  "black-bream": { id: "black-bream", name: "Чёрный лещ", kind: "material", weight: 1.6, stackable: true, basePrice: 18 },
+  "black-bream-rare": { id: "black-bream-rare", name: "Чёрный лещ (редкий)", kind: "material", weight: 1.6, stackable: true, basePrice: 40 },
+  "moon-carp": { id: "moon-carp", name: "Лунный карась", kind: "material", weight: 1.1, stackable: true, basePrice: 35 },
+  "moon-carp-rare": { id: "moon-carp-rare", name: "Лунный карась (редкий)", kind: "material", weight: 1.1, stackable: true, basePrice: 75 },
   "wolf-pelt": { id: "wolf-pelt", name: "Волчья шкура", kind: "material", weight: 1, stackable: true, basePrice: 8 },
   "iron-short-sword": {
     id: "iron-short-sword", name: "Железный короткий меч", kind: "equipment", weight: 3, stackable: false,

@@ -1,0 +1,26 @@
+name: Pocket RPG CI
+
+on:
+  push:
+    branches:
+      - feat/pocket-rpg-first-vertical-slice
+  pull_request:
+    paths:
+      - 'pocket-rpg/**'
+      - '.github/workflows/pocket-rpg.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pocket-rpg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build

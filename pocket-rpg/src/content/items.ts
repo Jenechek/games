@@ -1,6 +1,7 @@
 import type { ItemDefinition } from "../game-core/items/items";
 
 export const itemDefinitions: Record<string, ItemDefinition> = {
+  "wolf-pelt": { id: "wolf-pelt", name: "Волчья шкура", kind: "material", weight: 1, stackable: true, basePrice: 8 },
   "iron-short-sword": {
     id: "iron-short-sword", name: "Железный короткий меч", kind: "equipment", weight: 3, stackable: false,
     slot: "mainHand", requirements: { attributes: { strength: 12 }, skills: { "short-sword": 3 } },

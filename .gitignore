@@ -1,0 +1,5 @@
+.superpowers/
+pocket-rpg/.local-build/
+pocket-rpg/test-local/
+pocket-rpg/node_modules/
+pocket-rpg/dist/

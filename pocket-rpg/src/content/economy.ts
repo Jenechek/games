@@ -17,6 +17,8 @@ export const basePrices:Record<string,number>={
   'heavy-armor':90,
   'travel-bag':50,
   'basic-fishing-rod':20,
+  worms:1,
+  spinner:15,
   'wheat':4,
   'wheat-rare':8,
   'turnip':5,

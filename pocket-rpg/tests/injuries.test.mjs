@@ -149,3 +149,10 @@ test('recovery reconstruction clears expired timestamps and lock helpers reflect
   assert.equal(recovered.restUntil, null);
   assert.equal(isRecoveryLocked(recovered, 80_000), false);
 });
+
+
+test('reconstructRecovery preserves object identity when no recovery timestamp changes', () => {
+  const state = cleanInjuryState();
+  state.severity.head = 1;
+  assert.equal(reconstructRecovery(state, 10_000), state);
+});

@@ -79,3 +79,26 @@ test('reconstructState normalizes expired recovery timestamps',()=>{
   assert.equal(reconstructed.injuries.unconsciousUntil,null);
   assert.equal(reconstructed.injuries.restUntil,null);
 });
+
+
+test('malformed schema v2 injury state fails closed', () => {
+  const base = {
+    character:{level:1,xp:0,gold:0},
+    world:{locationId:'tillanium',travel:null,arrivalCount:0},
+    inventory:{stacks:[]}
+  };
+  assert.equal(migrateSave({
+    schemaVersion:2,
+    savedAt:1,
+    state:{...base,injuries:{}}
+  }), null);
+  assert.equal(migrateSave({
+    schemaVersion:2,
+    savedAt:1,
+    state:{...base,injuries:{
+      severity:{head:4,torso:0,leftArm:0,rightArm:0,leftLeg:0,rightLeg:0},
+      unconsciousUntil:null,
+      restUntil:null
+    }}
+  }), null);
+});

@@ -1,4 +1,6 @@
 import type { AttributeId } from '../game-core/types.js';
+import { emptyAttributeProfile } from '../game-core/progression/character.js';
+import type { AttributeProfile } from '../game-core/progression/character.js';
 import type { SeededRng } from '../game-core/rng.js';
 import { startTravel, advanceWorldTime, type WorldState } from '../game-core/world/travel.js';
 import type { InjuryState } from '../game-core/injuries/types.js';
@@ -37,6 +39,7 @@ export interface UiGameState {
   level:number;
   xp:number;
   attributes: Record<AttributeId, number>;
+  attributeXp:AttributeProfile;
   world: WorldState;
   gold: number;
   injuries: InjuryState;
@@ -80,6 +83,7 @@ export function createNewGame(): UiGameState {
     level:1,
     xp:0,
     attributes:{strength:10,agility:10,intuition:10,vitality:10,wisdom:10,luck:10,charisma:10,intelligence:10},
+    attributeXp:emptyAttributeProfile(),
     world:{locationId:'tillanium',travel:null,arrivalCount:0},
     gold:100,
     injuries:cleanInjuryState(),

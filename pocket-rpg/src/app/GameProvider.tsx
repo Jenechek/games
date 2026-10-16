@@ -245,6 +245,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
               farmingWork:null,
               fishing:null,
               combat:enemyCombat(enemyId,n,true),
+              combatItemUsedRound:null,
               log:[...n.log,'Работу на поле прервал слабый противник.']
             };
             break;
@@ -356,7 +357,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(r.state.player.hp<=0)return applyPlayerDefeat(s);
         if(r.state.enemy.hp<=0){
           const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-          return{...s,combat:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+          return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
         }
         return{...s,combat:r.state,combatItemUsedRound:null};
       });

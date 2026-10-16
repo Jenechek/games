@@ -14,9 +14,11 @@ import {
   advanceFarmingWork,
   isCellMature,
   rareCropChance,
-  rollCropYield
+  rollCropYield,
+  fieldCellSummary
 } from '../dist/game-core/peaceful/farming/farming.js';
 import { SeededRng } from '../dist/game-core/rng.js';
+import { itemDefs } from '../dist/content/items.js';
 
 test('field slot limit expands at approved farming thresholds', () => {
   assert.equal(fieldSlotLimit(0), 1);
@@ -248,4 +250,23 @@ test('rare crop chance combines crop base skill luck and gear bonus with a hard 
   assert.equal(rareCropChance('wheat', 0, 10, 0), 0.01);
   assert.equal(rareCropChance('wheat', 100, 30, 0), 0.07);
   assert.equal(rareCropChance('wheat', 100, 1000, 1), 0.5);
+});
+
+
+test('field cell summary separates empty growing and mature cells for UI', () => {
+  const state=makeEstablishedField();
+  state.fields[0].cells[0]={plantedAt:0,maturesAt:1_000};
+  state.fields[0].cells[1]={plantedAt:0,maturesAt:10_000};
+  assert.deepEqual(
+    fieldCellSummary(state.fields[0],5_000),
+    {empty:2,growing:1,mature:1}
+  );
+});
+
+test('ordinary and rare crop inventory definitions use the authored crop mass', () => {
+  assert.equal(itemDefs.wheat.weight,0.2);
+  assert.equal(itemDefs['wheat-rare'].weight,0.2);
+  assert.equal(itemDefs.turnip.weight,0.35);
+  assert.equal(itemDefs['turnip-rare'].weight,0.35);
+  assert.match(itemDefs['flax-rare'].label,/редк/i);
 });

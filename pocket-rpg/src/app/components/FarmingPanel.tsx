@@ -6,7 +6,7 @@ import {
   fieldCellSummary,
   fieldSlotLimit
 } from '../../game-core/peaceful/farming/farming';
-import { canPerformAction } from '../game-controller';
+import { canStartFarmingAction } from '../game-controller';
 
 const workLabels={
   establish:'Подготовка поля',
@@ -22,7 +22,7 @@ export function FarmingPanel(){
   const now=Date.now();
   const localFields=state.farming.fields.filter(field=>field.locationId===state.world.locationId);
   const slots=fieldSlotLimit(state.farming.skill.level);
-  const locked=!canPerformAction(state.injuries,'farming',now)||Boolean(state.combat);
+  const locked=!canStartFarmingAction(state.injuries,Boolean(state.combat),now);
   const active=state.farmingWork;
   const remaining=active?Math.max(0,Math.ceil((active.nextAt-now)/1000)):0;
 

@@ -68,6 +68,14 @@ export function canPerformAction(injuries: InjuryState, action: RecoveryActionKi
   return !isRecoveryLocked(injuries, now);
 }
 
+export function canStartFarmingAction(
+  injuries: InjuryState,
+  inCombat: boolean,
+  now: number
+): boolean {
+  return !inCombat && canPerformAction(injuries,'farming',now);
+}
+
 export function canStartFishingWithFarming(farmingWork: FarmingWork | null | undefined): boolean {
   return farmingWork == null;
 }

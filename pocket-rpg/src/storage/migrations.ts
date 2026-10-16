@@ -12,6 +12,7 @@ import type {
   LegacyGameStateV2
 } from '../game-core/game-state.js';
 import { cropDefs } from '../content/farming.js';
+import { locations } from '../content/locations.js';
 import type { SaveEnvelopeV3 } from './schema.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -111,12 +112,17 @@ function looksLikeFarmingState(value: unknown): value is FarmingState {
   if (value.fields.length > fieldSlotLimit(level)) return false;
   const maxCapacity = fieldCellCapacity(level);
   const ids = new Set<string>();
+  let highestFieldNumber = 0;
 
   for (const field of value.fields) {
     if (!isObject(field)) return false;
     if (typeof field.id !== 'string' || field.id.length === 0 || ids.has(field.id)) return false;
+    const fieldMatch = /^field-(\d+)$/.exec(field.id);
+    if (!fieldMatch) return false;
+    highestFieldNumber = Math.max(highestFieldNumber, Number(fieldMatch[1]));
     ids.add(field.id);
     if (typeof field.locationId !== 'string' || field.locationId.length === 0) return false;
+    if (!locations[field.locationId]?.agriculture) return false;
     if (field.cycleCropId !== null && (typeof field.cycleCropId !== 'string' || !cropDefs[field.cycleCropId])) return false;
     if (!Array.isArray(field.cells) || field.cells.length < 4 || field.cells.length > maxCapacity) return false;
     if (!field.cells.every(looksLikeFarmCell)) return false;
@@ -126,6 +132,7 @@ function looksLikeFarmingState(value: unknown): value is FarmingState {
     if (!hasCrop && field.cycleCropId !== null) return false;
   }
 
+  if ((value.nextFieldNumber as number) <= highestFieldNumber) return false;
   return true;
 }
 

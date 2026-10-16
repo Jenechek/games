@@ -2,6 +2,7 @@ import React,{createContext,useContext,useEffect,useMemo,useRef,useState} from '
 import {
   applyHarvestResults,
   canPerformAction,
+  canStartFarmingAction,
   canStartFishingWithFarming,
   createNewGame,
   rollFarmingInterruption,
@@ -284,7 +285,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
       setState(s=>{
         const location=locations[s.world.locationId];
         if(!location?.agriculture)return s;
-        if(!canPerformAction(s.injuries,'farming',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя работать на поле: персонаж восстанавливается.']};
+        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now()))return{...s,log:[...s.log,'Сейчас нельзя работать на поле.']};
         if(s.farmingWork)return s;
         try{
           return{
@@ -298,7 +299,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     plantField(fieldId,cropId){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'farming',Date.now())||s.farmingWork)return s;
+        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now())||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
         if(!field||field.locationId!==s.world.locationId||!locations[s.world.locationId]?.agriculture)return s;
         try{
@@ -320,7 +321,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     harvestField(fieldId){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'farming',Date.now())||s.farmingWork)return s;
+        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now())||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
         if(!field||field.locationId!==s.world.locationId||!locations[s.world.locationId]?.agriculture)return s;
         try{

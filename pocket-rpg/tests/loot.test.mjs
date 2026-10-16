@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {SeededRng} from '../dist/game-core/rng.js';import {rollLoot,acceptLootItems,adjustedDropChance} from '../dist/game-core/loot/loot.js';
+test('loot is deterministic and gold is always present',()=>{const enemy={gold:[5,10],drops:[{itemId:'iron-short-sword',chance:.5}]};const a=rollLoot(enemy,{luck:10},new SeededRng(4));const b=rollLoot(enemy,{luck:10},new SeededRng(4));assert.deepEqual(a,b);assert.ok(a.gold>=5&&a.gold<=10);});
+test('luck modestly improves drop chance',()=>{assert.ok(adjustedDropChance(.1,30)>adjustedDropChance(.1,10));assert.ok(adjustedDropChance(.1,30)<.2);});
+test('only selected loot enters inventory',()=>{const next=acceptLootItems({stacks:[]},[{itemId:'a',quantity:1},{itemId:'b',quantity:1}],['a']);assert.deepEqual(next.stacks,[{itemId:'a',quantity:1}]);});

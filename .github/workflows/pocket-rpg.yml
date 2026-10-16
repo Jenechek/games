@@ -1,0 +1,32 @@
+name: Pocket RPG verification
+
+on:
+  push:
+    branches:
+      - codex/pocket-rpg-first-vertical
+    paths:
+      - "pocket-rpg/**"
+      - ".github/workflows/pocket-rpg.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pocket-rpg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: pocket-rpg/package.json
+      - name: Install dependencies
+        run: npm install
+      - name: Core tests
+        run: npm test
+      - name: Type-check React UI
+        run: npx tsc --noEmit --jsx react-jsx --target ES2022 --module ES2022 --moduleResolution Bundler --skipLibCheck src/main.tsx src/app/App.tsx src/app/GameProvider.tsx src/app/components/*.tsx
+      - name: Production build
+        run: npm run app:build

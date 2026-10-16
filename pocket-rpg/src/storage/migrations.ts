@@ -20,6 +20,7 @@ import {
   createDefaultUniversityState
 } from '../game-core/university/retraining.js';
 import { emptyAttributeProfile } from '../game-core/progression/character.js';
+import type { SkillState } from '../game-core/progression/skills.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
 import { createDefaultClassState,effectiveSummonDefinitions,unlockedSummonIds } from '../game-core/classes/classes.js';
 import type { ClassState } from '../game-core/classes/types.js';
@@ -219,7 +220,7 @@ function looksLikeGatheringState(value:unknown):value is GatheringState{
   if(new Set(value.discoveredResourceIds).size!==value.discoveredResourceIds.length)return false;
   return true;
 }
-function looksLikeSkillState(value:unknown):boolean{
+function looksLikeSkillState(value:unknown):value is SkillState{
   return isObject(value)
     &&Number.isInteger(value.level)
     &&(value.level as number)>=0

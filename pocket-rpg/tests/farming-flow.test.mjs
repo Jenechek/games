@@ -66,7 +66,7 @@ test('harvest results merge into inventory stacks by item id', () => {
   ]);
   assert.deepEqual(next.stacks,[
     {itemId:'wheat',quantity:5},
-    {itemId:'wheat-rare',quantity:2}
+    {itemId:'wheat-rare',quantity:2,itemClass:2}
   ]);
 });
 

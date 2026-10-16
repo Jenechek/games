@@ -32,7 +32,7 @@ export function MerchantPanel(){
   const event=currentMarketEvent(city.id,now);
   const relation=city.factionId?state.economy.factionRelations[city.factionId]??0:0;
   const faction=city.factionId?factions[city.factionId]:undefined;
-  const buyItems=[...merchant.items];
+  const buyItems:string[]=[...merchant.items];
   if(faction&&honoredFactionItemUnlocked(relation)&&!buyItems.includes(faction.honoredUnlockItemId)){
     buyItems.push(faction.honoredUnlockItemId);
   }

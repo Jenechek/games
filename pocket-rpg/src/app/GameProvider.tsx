@@ -787,7 +787,8 @@ export function GameProvider({children}:{children:React.ReactNode}){
             .filter(entry=>entry.rarity)
             .map(entry=>entry.rarity)
             .join(', ');
-          return{
+          const characterXp=result.results.reduce((sum,entry)=>sum+entry.xp,0);
+          return awardCharacterXp({
             ...s,
             crafting:result.state,
             inventory:result.inventory,
@@ -795,7 +796,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Создано: ${recipe.label} ×${result.results.length}${rarityText?` [${rarityText}]`:''}.`]
-          };
+          },characterXp,recipe.skillId==='alchemy'?'alchemy':'crafting');
         }catch{
           return{...s,log:[...s.log,`Не удалось создать: ${recipe.label}.`]};
         }
@@ -904,7 +905,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             now,
             rng:rng.current
           });
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -917,7 +918,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             log:[...s.log,result.success
               ?`Аудиенция прошла успешно. Отношения с ${factions[factionId].label}: +1.`
               :'Аудиенция не дала результата.']
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Новая аудиенция пока недоступна.']};
         }
@@ -939,7 +940,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             now,
             rng:rng.current
           });
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -952,7 +953,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             log:[...s.log,result.success
               ?`Медиация удалась. Отношения с ${factions[factionId].label}: +2.`
               :`Медиация провалилась. Отношения с ${factions[factionId].label}: −1.`]
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Медиация пока недоступна.']};
         }
@@ -988,7 +989,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             request.quantity,
             normalizedStackClass(stack)
           );
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -1001,7 +1002,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Поручение выполнено: +3 отношения, +${result.goldReward.toFixed(2)} золота.`]
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Поручение этого периода уже выполнено.']};
         }

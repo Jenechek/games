@@ -15,6 +15,7 @@ import { resolveRetraining } from './university/retraining.js';
 import type { SummonRosterState } from './summons/types.js';
 import { reconstructSummonRecovery } from './summons/summons.js';
 import { summonDefinitions } from '../content/summons.js';
+import type { ClassState } from './classes/types.js';
 
 export interface LegacyCharacterPersistentState {
   level:number;
@@ -51,8 +52,11 @@ export interface LegacyGameStateV8 extends LegacyGameStateV7 {
 export interface LegacyGameStateV9 extends LegacyGameStateV8 {
   character:CharacterPersistentState;
 }
-export interface GameState extends LegacyGameStateV9 {
+export interface LegacyGameStateV10 extends LegacyGameStateV9 {
   summons:SummonRosterState;
+}
+export interface GameState extends LegacyGameStateV10 {
+  classState:ClassState;
 }
 
 export function reconstructState(state:GameState,now:number):GameState{

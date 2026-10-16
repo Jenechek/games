@@ -189,12 +189,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           n.farmingWork,
           stepAt,
           rng.current,
-          n.attributes.luck,
-          0,
-          results=>currentLoadRatio(
-            applyGatheringResults(n.inventory,results),
-            n.attributes
-          )<1.2
+          n.attributes.luck
         );
         const inventory=applyHarvestResults(n.inventory,step.harvests);
         n={
@@ -236,7 +231,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
           now,
           rng.current,
           n.world.locationId,
-          n.attributes.luck
+          n.attributes.luck,
+          0,
+          results=>currentLoadRatio(
+            applyGatheringResults(n.inventory,results),
+            n.attributes
+          )<1.2
         );
         const inventory=applyGatheringResults(n.inventory,gathered.results);
         const resultLog=gathered.results.map(result=>{

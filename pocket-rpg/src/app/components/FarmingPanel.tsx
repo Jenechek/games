@@ -6,7 +6,7 @@ import {
   fieldCellSummary,
   fieldSlotLimit
 } from '../../game-core/peaceful/farming/farming';
-import { canStartFarmingAction } from '../game-controller';
+import { canStartFarmingAction, currentLoadRatio } from '../game-controller';
 
 const workLabels={
   establish:'Подготовка поля',

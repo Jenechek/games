@@ -139,7 +139,8 @@ export function advanceGathering(
   rng:RandomSource,
   locationId:string,
   luck:number,
-  gearRareBonus=0
+  gearRareBonus=0,
+  canContinue?:(results:GatheringResult[])=>boolean
 ):{gathering:GatheringState;session:GatheringSession;results:GatheringResult[]}{
   let gathering:GatheringState={
     skill:{...state.skill},
@@ -165,6 +166,7 @@ export function advanceGathering(
         ? gathering.discoveredResourceIds
         : [...gathering.discoveredResourceIds,resourceId]
     };
+    if(canContinue&&!canContinue(results))break;
     nextSession.nextAt+=nextSession.cycleMs;
   }
 

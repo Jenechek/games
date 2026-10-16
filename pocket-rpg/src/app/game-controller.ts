@@ -132,9 +132,12 @@ export function canStartFishingAction(
 export function canStartFarmingAction(
   injuries: InjuryState,
   inCombat: boolean,
+  loadRatioValue: number,
   now: number
 ): boolean {
-  return !inCombat && canPerformAction(injuries,'farming',now);
+  return !inCombat
+    && loadRatioValue < 1.2
+    && canPerformAction(injuries,'farming',now);
 }
 
 export function canStartFishingWithFarming(farmingWork: FarmingWork | null | undefined): boolean {

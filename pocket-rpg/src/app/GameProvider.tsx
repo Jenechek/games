@@ -189,7 +189,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
           n.farmingWork,
           stepAt,
           rng.current,
-          n.attributes.luck
+          n.attributes.luck,
+          0,
+          results=>currentLoadRatio(
+            applyGatheringResults(n.inventory,results),
+            n.attributes
+          )<1.2
         );
         const inventory=applyHarvestResults(n.inventory,step.harvests);
         n={
@@ -199,6 +204,15 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory,
           market:{...n.market,inventory}
         };
+
+        if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
+          n={
+            ...n,
+            farmingWork:null,
+            log:[...n.log,'Работа на поле остановлена: перегруз достиг 120%.']
+          };
+          break;
+        }
 
         if(step.completedCells>0){
           const enemyId=rollFarmingInterruption(agriculture,rng.current);
@@ -350,7 +364,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
       setState(s=>{
         const location=locations[s.world.locationId];
         if(!location?.agriculture)return s;
-        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now()))return{...s,log:[...s.log,'Сейчас нельзя работать на поле.']};
+        if(!canStartFarmingAction(
+          s.injuries,
+          Boolean(s.combat),
+          currentLoadRatio(s.inventory,s.attributes),
+          Date.now()
+        ))return{...s,log:[...s.log,'Сейчас нельзя работать на поле.']};
         if(s.farmingWork)return s;
         try{
           return{
@@ -365,7 +384,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     plantField(fieldId,cropId){
       setState(s=>{
-        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now())||s.farmingWork)return s;
+        if(!canStartFarmingAction(
+          s.injuries,
+          Boolean(s.combat),
+          currentLoadRatio(s.inventory,s.attributes),
+          Date.now()
+        )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
         if(!field||field.locationId!==s.world.locationId||!locations[s.world.locationId]?.agriculture)return s;
         try{
@@ -388,7 +412,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     harvestField(fieldId){
       setState(s=>{
-        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now())||s.farmingWork)return s;
+        if(!canStartFarmingAction(
+          s.injuries,
+          Boolean(s.combat),
+          currentLoadRatio(s.inventory,s.attributes),
+          Date.now()
+        )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
         if(!field||field.locationId!==s.world.locationId||!locations[s.world.locationId]?.agriculture)return s;
         try{

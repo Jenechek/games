@@ -6,12 +6,13 @@ export interface LocationDefinition {
   enemies:string[];
   fishing?:boolean;
   agriculture?:AgricultureKind;
+  gathering?:boolean;
 }
 export const locations:Record<string,LocationDefinition>={
   'tillanium':{id:'tillanium',label:'Тилланиум',neighbors:['city-gate'],enemies:[]},
   'city-gate':{id:'city-gate',label:'Городские ворота',neighbors:['tillanium','tillanium-fields','meadow'],enemies:[]},
-  'tillanium-fields':{id:'tillanium-fields',label:'Поля Тилланиума',neighbors:['city-gate'],enemies:[],agriculture:'safe'},
-  'meadow':{id:'meadow',label:'Луг',neighbors:['city-gate','forest-edge'],enemies:['young-wolf'],fishing:true,agriculture:'neutral'},
-  'forest-edge':{id:'forest-edge',label:'Опушка леса',neighbors:['meadow','dark-forest'],enemies:['young-wolf','bandit'],fishing:true},
-  'dark-forest':{id:'dark-forest',label:'Тёмный лес',neighbors:['forest-edge'],enemies:['young-wolf','bandit','old-treant']}
+  'tillanium-fields':{id:'tillanium-fields',label:'Поля Тилланиума',neighbors:['city-gate'],enemies:[],agriculture:'safe',gathering:true},
+  'meadow':{id:'meadow',label:'Луг',neighbors:['city-gate','forest-edge'],enemies:['young-wolf'],fishing:true,agriculture:'neutral',gathering:true},
+  'forest-edge':{id:'forest-edge',label:'Опушка леса',neighbors:['meadow','dark-forest'],enemies:['young-wolf','bandit'],fishing:true,gathering:true},
+  'dark-forest':{id:'dark-forest',label:'Тёмный лес',neighbors:['forest-edge'],enemies:['young-wolf','bandit','old-treant'],gathering:true}
 };

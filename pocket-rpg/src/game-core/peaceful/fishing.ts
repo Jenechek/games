@@ -22,7 +22,7 @@ export function advanceFishing<T extends FishingGameState>(
   canContinue?:(inventory:InventoryState)=>boolean
 ):T {
   if(!state.fishing) return state;
-  let out:any={...state,inventory:{stacks:state.inventory.stacks.map(x=>({...x}))},fishing:{...state.fishing}};
+  let out:any={...state,inventory:{...state.inventory,stacks:state.inventory.stacks.map(x=>({...x})),instances:state.inventory.instances?.map(x=>({...x,properties:[...x.properties]}))},fishing:{...state.fishing}};
   while(out.fishing && now>=out.fishing.nextAt){const fishId=chooseFish(locationId,out.fishing.baitId,rng,luck);if(!fishId)break;const stack=out.inventory.stacks.find((x:any)=>x.itemId===fishId);if(stack)stack.quantity+=1;else out.inventory.stacks.push({itemId:fishId,quantity:1});out.fishingXp+=fishDefs[fishId].xp;
     if(canContinue&&!canContinue(out.inventory)){out.fishing=null;break;}
     out.fishing.nextAt+=out.fishing.cycleMs;

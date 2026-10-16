@@ -13,5 +13,5 @@ export function rollLoot(enemy:EnemyLootDef,character:{luck:number},rng:SeededRn
 export function acceptLootItems(inventory:InventoryState,loot:LootItem[],selectedIds:string[]):InventoryState {
   const stacks=inventory.stacks.map(x=>({...x}));
   for(const item of loot) { if(!selectedIds.includes(item.itemId)) continue; const stack=stacks.find(x=>x.itemId===item.itemId); if(stack) stack.quantity+=item.quantity; else stacks.push({...item}); }
-  return {stacks};
+  return {...inventory,stacks};
 }

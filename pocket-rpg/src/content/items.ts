@@ -40,6 +40,20 @@ for(const fish of Object.values(fishDefs)){
   };
 }
 
+const craftingContentItems:Record<string,ItemDefinition>={
+  'iron-ingot':{id:'iron-ingot',label:'Железный слиток',weight:2,rarity:'common'},
+  'wood-plank':{id:'wood-plank',label:'Деревянная доска',weight:1,rarity:'common'},
+  'leather':{id:'leather',label:'Кожа',weight:0.5,rarity:'common'},
+  'recipe-medium-injury-medicine':{id:'recipe-medium-injury-medicine',label:'Рецепт: среднее средство от травм',weight:0.05,rarity:'common'},
+  'recipe-strong-injury-medicine':{id:'recipe-strong-injury-medicine',label:'Рецепт: сильное средство от травм',weight:0.05,rarity:'common'},
+  'recipe-iron-short-sword':{id:'recipe-iron-short-sword',label:'Рецепт: железный короткий меч',weight:0.05,rarity:'common'},
+  'recipe-wooden-shield':{id:'recipe-wooden-shield',label:'Рецепт: деревянный щит',weight:0.05,rarity:'common'},
+  'recipe-light-armor':{id:'recipe-light-armor',label:'Рецепт: лёгкая броня',weight:0.05,rarity:'common'},
+  'recipe-healing-potion':{id:'recipe-healing-potion',label:'Рецепт: лечебное зелье',weight:0.05,rarity:'common'},
+  'recipe-weak-injury-medicine':{id:'recipe-weak-injury-medicine',label:'Рецепт: слабое средство от травм',weight:0.05,rarity:'common'},
+  'recipe-travel-bag':{id:'recipe-travel-bag',label:'Рецепт: походная сумка',weight:0.05,rarity:'common'}
+};
+
 export const itemDefs:Record<string,ItemDefinition>={
   'iron-short-sword':{id:'iron-short-sword',label:'Железный короткий меч',weight:3,slot:'mainHand',rarity:'common',requirements:{attributes:{strength:12},skills:{'short-sword':1}},stats:{damage:10}},
   'rare-short-sword':{id:'rare-short-sword',label:'Редкий короткий меч',weight:3,slot:'mainHand',rarity:'rare',requirements:{attributes:{strength:20},skills:{'short-sword':20}},stats:{damage:16}},
@@ -54,5 +68,6 @@ export const itemDefs:Record<string,ItemDefinition>={
   'basic-fishing-rod':{id:'basic-fishing-rod',label:'Простая удочка',weight:1.2,rarity:'common',requirements:{skills:{fishing:0}},stats:{fishingSpeed:1,rareChance:0}},
   ...cropItemDefs,
   ...gatheringItemDefs,
-  ...fishItemDefs
+  ...fishItemDefs,
+  ...craftingContentItems
 };

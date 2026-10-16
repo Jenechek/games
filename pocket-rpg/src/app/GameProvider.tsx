@@ -4,11 +4,14 @@ import {
   applyHarvestResults,
   canPerformAction,
   canStartGatheringAction,
+  canUseCraftingAction,
+  canUseCraftingWorkshop,
   canStartFarmingAction,
   canStartFishingAction,
   canStartFishingWithFarming,
   createNewGame,
   currentLoadRatio,
+  replaceInventoryInstance,
   rollFarmingInterruption,
   scaleFarmingAmbushStats,
   tickGame,
@@ -48,9 +51,17 @@ import { IndexedDbSaveStore } from '../storage/indexed-db';
 import { reconstructState } from '../game-core/game-state';
 import { applyDefeatConsequences } from '../game-core/injuries/defeat';
 import { injuryPenaltySummary } from '../game-core/injuries/injuries';
+import {
+  craftReadiness,
+  craftRecipe as performCraftRecipe,
+  learnRecipeScroll,
+  rerollItemProperty,
+  upgradeItem
+} from '../game-core/crafting/crafting';
+import { craftRecipes } from '../content/crafting';
 
 interface RuntimeState extends UiGameState {
-  inventory:{stacks:{itemId:string;quantity:number}[]};
+  inventory:import('../game-core/items/inventory').InventoryState;
   fishingXp:number;
   fishing?:FishingState|null;
   farmingWork:FarmingWork|null;
@@ -81,6 +92,10 @@ interface Commands {
   buy(id:string,price:number):void;
   sell(id:string,price:number):void;
   useInjuryMedicine(tier:InjuryMedicineTier):void;
+  craftRecipeCmd(recipeId:string):void;
+  learnRecipeCmd(recipeId:string):void;
+  upgradeCraftedCmd(instanceId:string):void;
+  rerollCraftedCmd(instanceId:string,propertyIndex:number):void;
 }
 const Ctx=createContext<{state:RuntimeState;commands:Commands}|null>(null);
 
@@ -90,7 +105,7 @@ function initial():RuntimeState {
     {itemId:'basic-fishing-rod',quantity:1},
     {itemId:'worms',quantity:1},
     {itemId:'healing-potion',quantity:2}
-  ]};
+  ],instances:[]};
   return {
     ...g,
     inventory,
@@ -153,6 +168,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           injuries:restored.injuries,
           farming:restored.farming,
           gathering:restored.gathering,
+          crafting:restored.crafting,
           farmingWork:null,
           gatheringSession:null,
           market:{...s.market,gold:restored.character.gold,inventory:restored.inventory}
@@ -170,11 +186,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         inventory:state.inventory,
         injuries:state.injuries,
         farming:state.farming,
-        gathering:state.gathering
+        gathering:state.gathering,
+        crafting:state.crafting
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering]);
+  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
@@ -343,7 +360,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           const ex=stacks.find(x=>x.itemId===it.itemId);
           if(ex)ex.quantity+=it.quantity;else stacks.push({...it});
         }
-        const inventory={stacks};
+        const inventory={...s.inventory,stacks};
         return{...s,inventory,market:{...s.market,inventory},loot:null};
       });
     },
@@ -505,6 +522,136 @@ export function GameProvider({children}:{children:React.ReactNode}){
           injuries:result.injuries,
           market:{...s.market,inventory:result.inventory},
           log:[...s.log,'Травмы обработаны лекарством.']
+        };
+      });
+    },
+    craftRecipeCmd(recipeId){
+      setState(s=>{
+        const recipe=craftRecipes[recipeId];
+        if(!recipe)return s;
+        const location=locations[s.world.locationId];
+        if(!canUseCraftingWorkshop(
+          s.injuries,
+          Boolean(s.combat),
+          location?.workshops,
+          recipe.workshop,
+          Date.now()
+        )){
+          return {...s,log:[...s.log,'Сейчас нельзя использовать эту мастерскую.']};
+        }
+        const readiness=craftReadiness(
+          s.crafting,
+          s.inventory,
+          recipeId,
+          recipe.workshop
+        );
+        if(!readiness.ok){
+          return {...s,log:[...s.log,`Крафт недоступен: ${readiness.reasons.join(', ')}.`]};
+        }
+        try{
+          const result=performCraftRecipe(
+            s.crafting,
+            s.inventory,
+            recipeId,
+            recipe.workshop,
+            s.attributes.luck,
+            rng.current
+          );
+          const inventory=result.inventory;
+          const outputLabel=result.output.kind==='stack'
+            ? recipe.label
+            : recipe.label+' ['+result.output.instance.rarity+']';
+          return {
+            ...s,
+            crafting:result.state,
+            inventory,
+            market:{...s.market,inventory},
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Создано: ${outputLabel}.`]
+          };
+        }catch{return s;}
+      });
+    },
+    learnRecipeCmd(recipeId){
+      setState(s=>{
+        if(!canUseCraftingAction(s.injuries,Boolean(s.combat),Date.now())){
+          return {...s,log:[...s.log,'Сейчас нельзя изучать рецепт.']};
+        }
+        const result=learnRecipeScroll(s.crafting,s.inventory,recipeId);
+        if(!result.ok)return s;
+        const gold=s.gold+result.goldDelta;
+        return {
+          ...s,
+          crafting:result.state,
+          inventory:result.inventory,
+          gold,
+          market:{...s.market,gold,inventory:result.inventory},
+          log:[
+            ...s.log,
+            result.learned
+              ? `Изучен рецепт: ${craftRecipes[recipeId]?.label??recipeId}.`
+              : 'Повторный рецепт обменян на 5 золота.'
+          ]
+        };
+      });
+    },
+    upgradeCraftedCmd(instanceId){
+      setState(s=>{
+        const instance=(s.inventory.instances??[]).find(item=>item.instanceId===instanceId);
+        if(!instance)return s;
+        const recipe=craftRecipes[instance.baseItemId];
+        if(!recipe)return s;
+        const location=locations[s.world.locationId];
+        if(!canUseCraftingWorkshop(
+          s.injuries,
+          Boolean(s.combat),
+          location?.workshops,
+          recipe.workshop,
+          Date.now()
+        ))return s;
+        const result=upgradeItem(instance,s.gold,rng.current);
+        if(!result.ok)return s;
+        const inventory=replaceInventoryInstance(s.inventory,result.instance);
+        return {
+          ...s,
+          gold:result.gold,
+          inventory,
+          market:{...s.market,gold:result.gold,inventory},
+          fishing:null,
+          farmingWork:null,
+          gatheringSession:null,
+          log:[...s.log,`Улучшено: ${instance.baseItemId} +${result.instance.upgradeLevel}.`]
+        };
+      });
+    },
+    rerollCraftedCmd(instanceId,propertyIndex){
+      setState(s=>{
+        const instance=(s.inventory.instances??[]).find(item=>item.instanceId===instanceId);
+        if(!instance)return s;
+        const recipe=craftRecipes[instance.baseItemId];
+        if(!recipe)return s;
+        const location=locations[s.world.locationId];
+        if(!canUseCraftingWorkshop(
+          s.injuries,
+          Boolean(s.combat),
+          location?.workshops,
+          recipe.workshop,
+          Date.now()
+        ))return s;
+        const result=rerollItemProperty(instance,propertyIndex,s.gold,rng.current);
+        if(!result.ok)return s;
+        const inventory=replaceInventoryInstance(s.inventory,result.instance);
+        return {
+          ...s,
+          gold:result.gold,
+          inventory,
+          market:{...s.market,gold:result.gold,inventory},
+          fishing:null,
+          farmingWork:null,
+          gatheringSession:null,
+          log:[...s.log,`Свойство ${instance.baseItemId} изменено.`]
         };
       });
     }

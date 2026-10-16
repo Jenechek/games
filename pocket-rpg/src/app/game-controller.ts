@@ -90,6 +90,22 @@ export function currentLoadRatio(
   return overloadRatio(mass,carryingCapacity(attributes,bagBonus));
 }
 
+export type GatheringStartReason='combat'|'farming'|'overload'|'recovery'|null;
+
+export function gatheringStartReason(
+  injuries: InjuryState,
+  inCombat: boolean,
+  hasFarmingWork: boolean,
+  loadRatioValue: number,
+  now: number
+): GatheringStartReason {
+  if(inCombat)return 'combat';
+  if(hasFarmingWork)return 'farming';
+  if(loadRatioValue>=1.2)return 'overload';
+  if(!canPerformAction(injuries,'gathering',now))return 'recovery';
+  return null;
+}
+
 export function canStartGatheringAction(
   injuries: InjuryState,
   inCombat: boolean,
@@ -97,10 +113,7 @@ export function canStartGatheringAction(
   loadRatioValue: number,
   now: number
 ): boolean {
-  return !inCombat
-    && !hasFarmingWork
-    && loadRatioValue < 1.2
-    && canPerformAction(injuries,'gathering',now);
+  return gatheringStartReason(injuries,inCombat,hasFarmingWork,loadRatioValue,now)===null;
 }
 
 export function canStartFarmingAction(

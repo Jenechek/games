@@ -21,6 +21,8 @@ import {
 } from '../game-core/university/retraining.js';
 import { emptyAttributeProfile } from '../game-core/progression/character.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
+import { createDefaultClassState } from '../game-core/classes/classes.js';
+import type { ClassState } from '../game-core/classes/types.js';
 import type { SummonRosterState } from '../game-core/summons/types.js';
 import type { UniversityState } from '../game-core/university/types.js';
 import { createLegacyEquipmentInstance,type EquipmentInstance } from '../game-core/items/equipment.js';
@@ -35,7 +37,8 @@ import type {
   LegacyGameStateV6,
   LegacyGameStateV7,
   LegacyGameStateV8,
-  LegacyGameStateV9
+  LegacyGameStateV9,
+  LegacyGameStateV10
 } from '../game-core/game-state.js';
 import { cropDefs } from '../content/farming.js';
 import { gatheringResourceDefs } from '../content/gathering.js';
@@ -45,7 +48,8 @@ import { itemDefs } from '../content/items.js';
 import { craftingRecipes,starterRecipeIds } from '../content/crafting.js';
 import { basePrices } from '../content/economy.js';
 import { summonDefinitions } from '../content/summons.js';
-import type { SaveEnvelopeV10 } from './schema.js';
+import { playerClasses } from '../content/classes.js';
+import type { SaveEnvelopeV11 } from './schema.js';
 
 const FACTION_IDS=['karnholm','ellaria','rivermark','greenwald'] as const;
 
@@ -364,10 +368,23 @@ function looksLikeSummonRoster(value:unknown):value is SummonRosterState{
   }
   return (value.nextInstanceId as number)>highest;
 }
-function looksLikeGameState(value:unknown):value is GameState{
+function looksLikeLegacyStateV10(value:unknown):value is LegacyGameStateV10{
   return looksLikeLegacyStateV9(value)
     &&isObject(value)
     &&looksLikeSummonRoster(value.summons);
+}
+function looksLikeClassState(value:unknown):value is ClassState{
+  if(!isObject(value)||!looksLikeSkillState(value.skill))return false;
+  if(value.classId===null){
+    return value.skill.level===0&&value.skill.xp===0;
+  }
+  return typeof value.classId==='string'
+    &&Object.prototype.hasOwnProperty.call(playerClasses,value.classId);
+}
+function looksLikeGameState(value:unknown):value is GameState{
+  return looksLikeLegacyStateV10(value)
+    &&isObject(value)
+    &&looksLikeClassState(value.classState);
 }
 
 export function upgradeLegacyInventory(
@@ -436,14 +453,21 @@ function withCharacterProfile(legacy:LegacyGameStateV8):LegacyGameStateV9{
   };
 }
 
-function withSummons(legacy:LegacyGameStateV9):GameState{
+function withSummons(legacy:LegacyGameStateV9):LegacyGameStateV10{
   return {
     ...legacy,
     summons:createDefaultSummonRoster()
   };
 }
 
-export function migrateSave(value:unknown):SaveEnvelopeV10|null{
+function withClassState(legacy:LegacyGameStateV10):GameState{
+  return {
+    ...legacy,
+    classState:createDefaultClassState()
+  };
+}
+
+export function migrateSave(value:unknown):SaveEnvelopeV11|null{
   if(!isObject(value)||!isFiniteNumber(value.savedAt))return null;
 
   if(value.schemaVersion===1&&looksLikeLegacyStateV1(value.state)){
@@ -453,7 +477,7 @@ export function migrateSave(value:unknown):SaveEnvelopeV10|null{
       farming:createDefaultFarmingState(),
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4))))))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4)))))))};
   }
   if(value.schemaVersion===2&&looksLikeLegacyStateV2(value.state)){
     const v4:LegacyGameStateV4={
@@ -461,35 +485,38 @@ export function migrateSave(value:unknown):SaveEnvelopeV10|null{
       farming:createDefaultFarmingState(),
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4))))))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4)))))))};
   }
   if(value.schemaVersion===3&&looksLikeLegacyStateV3(value.state)){
     const v4:LegacyGameStateV4={
       ...value.state,
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4))))))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4)))))))};
   }
   if(value.schemaVersion===4&&looksLikeLegacyStateV4(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(value.state))))))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(value.state)))))))};
   }
   if(value.schemaVersion===5&&looksLikeLegacyStateV5(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(value.state)))))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(value.state))))))};
   }
   if(value.schemaVersion===6&&looksLikeLegacyStateV6(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(value.state))))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(withUniversity(withDiplomacy(value.state)))))};
   }
   if(value.schemaVersion===7&&looksLikeLegacyStateV7(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(value.state)))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(withUniversity(value.state))))};
   }
   if(value.schemaVersion===8&&looksLikeLegacyStateV8(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(value.state))};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(withCharacterProfile(value.state)))};
   }
   if(value.schemaVersion===9&&looksLikeLegacyStateV9(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(value.state)};
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(withSummons(value.state))};
   }
-  if(value.schemaVersion===10&&looksLikeGameState(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:value.state};
+  if(value.schemaVersion===10&&looksLikeLegacyStateV10(value.state)){
+    return {schemaVersion:11,savedAt:value.savedAt,state:withClassState(value.state)};
+  }
+  if(value.schemaVersion===11&&looksLikeGameState(value.state)){
+    return {schemaVersion:11,savedAt:value.savedAt,state:value.state};
   }
   return null;
 }

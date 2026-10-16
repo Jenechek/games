@@ -1,4 +1,5 @@
 import type { AttributeId } from './types.js';
+import type { AttributeProfile } from './progression/character.js';
 import type { InventoryState,LegacyInventoryState } from './items/inventory.js';
 import type { WorldState } from './world/travel.js';
 import { advanceWorldTime } from './world/travel.js';
@@ -18,8 +19,12 @@ export interface LegacyCharacterPersistentState {
   gold:number;
 }
 
-export interface CharacterPersistentState extends LegacyCharacterPersistentState {
+export interface LegacyCharacterPersistentStateV8 extends LegacyCharacterPersistentState {
   attributes:Record<AttributeId,number>;
+}
+
+export interface CharacterPersistentState extends LegacyCharacterPersistentStateV8 {
+  attributeXp:AttributeProfile;
 }
 
 export interface LegacyGameStateV1 {
@@ -27,35 +32,21 @@ export interface LegacyGameStateV1 {
   world:WorldState;
   inventory:LegacyInventoryState;
 }
-
-export interface LegacyGameStateV2 extends LegacyGameStateV1 {
-  injuries:InjuryState;
-}
-
-export interface LegacyGameStateV3 extends LegacyGameStateV2 {
-  farming:FarmingState;
-}
-
-export interface LegacyGameStateV4 extends LegacyGameStateV3 {
-  gathering:GatheringState;
-}
-
+export interface LegacyGameStateV2 extends LegacyGameStateV1 {injuries:InjuryState;}
+export interface LegacyGameStateV3 extends LegacyGameStateV2 {farming:FarmingState;}
+export interface LegacyGameStateV4 extends LegacyGameStateV3 {gathering:GatheringState;}
 export interface LegacyGameStateV5 extends LegacyGameStateV4 {
   inventory:InventoryState;
   crafting:CraftingState;
 }
-
-export interface LegacyGameStateV6 extends LegacyGameStateV5 {
-  economy:EconomyState;
-}
-
-export interface LegacyGameStateV7 extends LegacyGameStateV6 {
-  diplomacy:DiplomacyState;
-}
-
-export interface GameState extends LegacyGameStateV7 {
-  character:CharacterPersistentState;
+export interface LegacyGameStateV6 extends LegacyGameStateV5 {economy:EconomyState;}
+export interface LegacyGameStateV7 extends LegacyGameStateV6 {diplomacy:DiplomacyState;}
+export interface LegacyGameStateV8 extends LegacyGameStateV7 {
+  character:LegacyCharacterPersistentStateV8;
   university:UniversityState;
+}
+export interface GameState extends LegacyGameStateV8 {
+  character:CharacterPersistentState;
 }
 
 export function reconstructState(state:GameState,now:number):GameState{

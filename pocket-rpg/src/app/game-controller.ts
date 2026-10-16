@@ -1,6 +1,8 @@
 import type { AttributeId } from '../game-core/types.js';
 import { emptyAttributeProfile } from '../game-core/progression/character.js';
 import type { AttributeProfile } from '../game-core/progression/character.js';
+import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
+import type { SummonRosterState } from '../game-core/summons/types.js';
 import type { SeededRng } from '../game-core/rng.js';
 import { startTravel, advanceWorldTime, type WorldState } from '../game-core/world/travel.js';
 import type { InjuryState } from '../game-core/injuries/types.js';

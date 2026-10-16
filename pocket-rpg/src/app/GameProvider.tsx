@@ -1129,7 +1129,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return{...s,log:[...s.log,'Такое перераспределение сейчас недоступно.']};
         }
       });
-    ,
+    },
     chooseClass(id){
       setState(s=>{
         if(s.combat)return s;
@@ -1192,7 +1192,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
         }
       });
     }
-  }
   }),[]);
 
   return <Ctx.Provider value={{state,commands}}>{children}</Ctx.Provider>;

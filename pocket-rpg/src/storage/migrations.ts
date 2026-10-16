@@ -21,7 +21,7 @@ import {
 } from '../game-core/university/retraining.js';
 import { emptyAttributeProfile } from '../game-core/progression/character.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
-import { createDefaultClassState } from '../game-core/classes/classes.js';
+import { createDefaultClassState,effectiveSummonDefinitions,unlockedSummonIds } from '../game-core/classes/classes.js';
 import type { ClassState } from '../game-core/classes/types.js';
 import type { SummonRosterState } from '../game-core/summons/types.js';
 import type { UniversityState } from '../game-core/university/types.js';
@@ -381,10 +381,47 @@ function looksLikeClassState(value:unknown):value is ClassState{
   return typeof value.classId==='string'
     &&Object.prototype.hasOwnProperty.call(playerClasses,value.classId);
 }
+function looksLikeClassSummonRoster(
+  value:unknown,
+  classState:ClassState
+):value is SummonRosterState{
+  if(!isObject(value)||!Array.isArray(value.active))return false;
+  if(!Number.isInteger(value.nextInstanceId)||(value.nextInstanceId as number)<1)return false;
+
+  const classDef=classState.classId?playerClasses[classState.classId]:null;
+  const maxActive=classDef?.summonLimit??3;
+  if(value.active.length>maxActive)return false;
+
+  const effective=effectiveSummonDefinitions(classState,playerClasses,summonDefinitions);
+  const allowed=classDef
+    ?new Set(unlockedSummonIds(classState,classDef))
+    :null;
+
+  const ids=new Set<string>();
+  let highest=0;
+  for(const instance of value.active){
+    if(!isObject(instance))return false;
+    if(typeof instance.instanceId!=='string'||ids.has(instance.instanceId))return false;
+    const match=/^summon-(\d+)$/.exec(instance.instanceId);
+    if(!match)return false;
+    highest=Math.max(highest,Number(match[1]));
+    ids.add(instance.instanceId);
+
+    if(typeof instance.definitionId!=='string')return false;
+    if(allowed&&!allowed.has(instance.definitionId))return false;
+    const def=effective[instance.definitionId];
+    if(!def)return false;
+    if(!isFiniteNumber(instance.hp)||instance.hp<=0||instance.hp>def.maxHp)return false;
+    if(!isFiniteNumber(instance.stamina)||instance.stamina<0||instance.stamina>def.maxStamina)return false;
+    if(!isFiniteNumber(instance.summonedAt)||instance.summonedAt<0)return false;
+    if(!isFiniteNumber(instance.recoveryUpdatedAt)||instance.recoveryUpdatedAt<instance.summonedAt)return false;
+  }
+  return (value.nextInstanceId as number)>highest;
+}
 function looksLikeGameState(value:unknown):value is GameState{
-  return looksLikeLegacyStateV10(value)
-    &&isObject(value)
-    &&looksLikeClassState(value.classState);
+  if(!looksLikeLegacyStateV9(value)||!isObject(value))return false;
+  if(!looksLikeClassState(value.classState))return false;
+  return looksLikeClassSummonRoster(value.summons,value.classState);
 }
 
 export function upgradeLegacyInventory(

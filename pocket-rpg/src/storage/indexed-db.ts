@@ -2,35 +2,82 @@ import type {
   GameState,
   LegacyGameStateV1,
   LegacyGameStateV2,
-  LegacyGameStateV3
+  LegacyGameStateV3,
+  LegacyGameStateV4
 } from '../game-core/game-state.js';
+import type {InventoryState} from '../game-core/items/inventory.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
 import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gathering.js';
-import type { SaveEnvelopeV4 } from './schema.js';
+import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
+import type { SaveEnvelopeV5 } from './schema.js';
 import { migrateSave } from './migrations.js';
 
-type SaveInput=GameState|LegacyGameStateV3|LegacyGameStateV2|LegacyGameStateV1;
+type SaveInput=
+  |GameState
+  |LegacyGameStateV4
+  |LegacyGameStateV3
+  |LegacyGameStateV2
+  |LegacyGameStateV1;
+
+function normalizeInventory(inventory:InventoryState):InventoryState{
+  return {
+    stacks:inventory.stacks.map(stack=>({...stack})),
+    instances:(inventory.instances??[]).map(instance=>({
+      ...instance,
+      properties:[...instance.properties]
+    }))
+  };
+}
 
 function normalizeState(state:SaveInput):GameState{
   return {
-    character:state.character,
-    world:state.world,
-    inventory:state.inventory,
-    injuries:'injuries' in state?state.injuries:cleanInjuryState(),
-    farming:'farming' in state?state.farming:createDefaultFarmingState(),
-    gathering:'gathering' in state?state.gathering:createDefaultGatheringState()
+    character:{...state.character},
+    world:{
+      ...state.world,
+      travel:state.world.travel?{...state.world.travel}:null
+    },
+    inventory:normalizeInventory(state.inventory),
+    injuries:'injuries' in state
+      ? {severity:{...state.injuries.severity},unconsciousUntil:state.injuries.unconsciousUntil,restUntil:state.injuries.restUntil}
+      : cleanInjuryState(),
+    farming:'farming' in state
+      ? {
+          ...state.farming,
+          skill:{...state.farming.skill},
+          knownSeedIds:[...state.farming.knownSeedIds],
+          fields:state.farming.fields.map(field=>({
+            ...field,
+            cells:field.cells.map(cell=>cell?{...cell}:null)
+          }))
+        }
+      : createDefaultFarmingState(),
+    gathering:'gathering' in state
+      ? {
+          skill:{...state.gathering.skill},
+          discoveredResourceIds:[...state.gathering.discoveredResourceIds]
+        }
+      : createDefaultGatheringState(),
+    crafting:'crafting' in state
+      ? {
+          craftingSkill:{...state.crafting.craftingSkill},
+          alchemySkill:{...state.crafting.alchemySkill},
+          knownRecipeIds:[...state.crafting.knownRecipeIds],
+          nextInstanceNumber:state.crafting.nextInstanceNumber
+        }
+      : createDefaultCraftingState()
   };
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV4={
-    schemaVersion:4,
+  const envelope:SaveEnvelopeV5={
+    schemaVersion:5,
     savedAt,
     state:normalizeState(state)
   };
   return JSON.stringify(envelope);
 }
+
 export function decodeSave(raw:string):GameState|null{
   try{return migrateSave(JSON.parse(raw))?.state??null;}catch{return null;}
 }
@@ -46,7 +93,9 @@ export class IndexedDbSaveStore{
   private async db():Promise<IDBDatabase>{
     return await new Promise((resolve,reject)=>{
       const req=indexedDB.open(this.dbName,1);
-      req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('saves'))req.result.createObjectStore('saves');};
+      req.onupgradeneeded=()=>{
+        if(!req.result.objectStoreNames.contains('saves'))req.result.createObjectStore('saves');
+      };
       req.onsuccess=()=>resolve(req.result);
       req.onerror=()=>reject(req.error);
     });

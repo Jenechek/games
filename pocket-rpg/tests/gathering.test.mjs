@@ -11,9 +11,11 @@ import {
   gatheringRareChance,
   startGathering,
   advanceGathering,
-  stopGathering
+  stopGathering,
+  gatheringLocationView
 } from '../dist/game-core/peaceful/gathering/gathering.js';
 import { gatheringPools, gatheringResourceDefs } from '../dist/content/gathering.js';
+import { itemDefs } from '../dist/content/items.js';
 
 test('default gathering state starts at level zero with no discoveries', () => {
   assert.deepEqual(createDefaultGatheringState(), {
@@ -150,4 +152,43 @@ test('advance gathering processes multiple overdue cycles without depleting the 
   assert.equal(result.results.length,3);
   assert.equal(result.results.every(x=>x.resourceId==='plant-fiber'),true);
   assert.equal(result.session.nextAt,20_000);
+});
+
+
+test('undiscovered gathering view exposes only vague category hints', () => {
+  const view=gatheringLocationView('meadow',createDefaultGatheringState());
+  assert.deepEqual(view.hints,[
+    'здесь встречаются травы',
+    'здесь можно найти ягоды',
+    'здесь есть волокнистые растения'
+  ]);
+  assert.deepEqual(view.discovered,[]);
+  assert.equal(JSON.stringify(view).includes('Дикорастущие травы'),false);
+});
+
+test('discovered resource names are visible at every location containing that resource', () => {
+  const state=createDefaultGatheringState();
+  state.discoveredResourceIds=['medicinal-herb','wild-berries'];
+
+  assert.deepEqual(gatheringLocationView('forest-edge',state).discovered,[
+    {resourceId:'medicinal-herb',label:'Лечебные травы'},
+    {resourceId:'wild-berries',label:'Дикие ягоды'}
+  ]);
+  assert.deepEqual(gatheringLocationView('dark-forest',state).discovered,[
+    {resourceId:'medicinal-herb',label:'Лечебные травы'},
+    {resourceId:'wild-berries',label:'Дикие ягоды'}
+  ]);
+  assert.deepEqual(gatheringLocationView('tillanium-fields',state).discovered,[]);
+});
+
+test('ordinary and rare gathering items use the same authored unit mass', () => {
+  assert.equal(itemDefs['wild-herb'].weight,0.10);
+  assert.equal(itemDefs['wild-herb-rare'].weight,0.10);
+  assert.equal(itemDefs['medicinal-herb'].weight,0.10);
+  assert.equal(itemDefs['medicinal-herb-rare'].weight,0.10);
+  assert.equal(itemDefs['wild-berries'].weight,0.15);
+  assert.equal(itemDefs['wild-berries-rare'].weight,0.15);
+  assert.equal(itemDefs['plant-fiber'].weight,0.10);
+  assert.equal(itemDefs['plant-fiber-rare'].weight,0.10);
+  assert.match(itemDefs['plant-fiber-rare'].label,/редк/i);
 });

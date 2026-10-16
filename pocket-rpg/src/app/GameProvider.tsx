@@ -947,7 +947,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return{...s,log:[...s.log,'Поручение этого периода уже выполнено.']};
         }
       });
-    ,
+    },
     startAttributeRetraining(from,to,percent){
       setState(s=>{
         const now=Date.now();
@@ -984,7 +984,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
         }
       });
     }
-  }
   }),[]);
 
   return <Ctx.Provider value={{state,commands}}>{children}</Ctx.Provider>;

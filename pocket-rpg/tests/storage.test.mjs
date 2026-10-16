@@ -402,3 +402,56 @@ test('runtime crafting UI state is never serialized',()=>{
   assert.equal(envelope.schemaVersion,5);
   assert.equal('craftPreview' in envelope.state,false);
 });
+
+
+test('schema v5 requires positive crafted ids and exact earned property count',()=>{
+  const base=fullState();
+
+  const zeroId={
+    instanceId:'crafted-0',
+    baseItemId:'travel-bag',
+    rarity:'common',
+    upgradeLevel:0,
+    properties:[]
+  };
+  assert.equal(migrateSave({
+    schemaVersion:5,savedAt:1,
+    state:{
+      ...base,
+      inventory:{...base.inventory,instances:[zeroId]},
+      crafting:{...base.crafting,nextInstanceNumber:1}
+    }
+  }),null);
+
+  const missingRareProperty={
+    instanceId:'crafted-1',
+    baseItemId:'travel-bag',
+    rarity:'rare',
+    upgradeLevel:0,
+    properties:[]
+  };
+  assert.equal(migrateSave({
+    schemaVersion:5,savedAt:1,
+    state:{
+      ...base,
+      inventory:{...base.inventory,instances:[missingRareProperty]},
+      crafting:{...base.crafting,nextInstanceNumber:2}
+    }
+  }),null);
+
+  const missingUpgradeProperty={
+    instanceId:'crafted-1',
+    baseItemId:'travel-bag',
+    rarity:'common',
+    upgradeLevel:3,
+    properties:[]
+  };
+  assert.equal(migrateSave({
+    schemaVersion:5,savedAt:1,
+    state:{
+      ...base,
+      inventory:{...base.inventory,instances:[missingUpgradeProperty]},
+      crafting:{...base.crafting,nextInstanceNumber:2}
+    }
+  }),null);
+});

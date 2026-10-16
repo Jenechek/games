@@ -60,3 +60,18 @@ test('replacing one crafted instance preserves stacks and every other instance',
     }
   );
 });
+
+
+test('recipe learning is a non-workshop action but still blocked by combat and recovery',()=>{
+  const injuries=cleanInjuryState();
+  assert.equal(
+    craftingActionReason(injuries,false,[],'forge',1,1000),
+    'workshop'
+  );
+  // Learning uses the general crafting action rather than workshop availability.
+  injuries.unconsciousUntil=10000;
+  assert.equal(
+    craftingActionReason(injuries,false,['forge'],'forge',1,1000),
+    'recovery'
+  );
+});

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { cleanInjuryState } from '../dist/game-core/injuries/injuries.js';
 import {
   canPerformAction,
+  canStartFarmingAction,
   canStartFishingWithFarming,
   shouldInterruptFarmingWork,
   applyHarvestResults,
@@ -71,4 +72,13 @@ test('harvest results merge into inventory stacks by item id', () => {
 
 test('neutral farming ambush enemies are weaker than normal regional enemies', () => {
   assert.deepEqual(scaleFarmingAmbushStats(45,7),{maxHp:32,damage:5});
+});
+
+
+test('farming action guard rejects combat even when injury recovery is clear', () => {
+  const injuries=cleanInjuryState();
+  assert.equal(canStartFarmingAction(injuries,false,1_000),true);
+  assert.equal(canStartFarmingAction(injuries,true,1_000),false);
+  injuries.unconsciousUntil=10_000;
+  assert.equal(canStartFarmingAction(injuries,false,1_000),false);
 });

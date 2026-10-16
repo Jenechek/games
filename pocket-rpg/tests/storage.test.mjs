@@ -224,3 +224,26 @@ test('runtime farming work is never serialized into the durable save', () => {
   const envelope=JSON.parse(raw);
   assert.equal('farmingWork' in envelope.state,false);
 });
+
+
+test('schema v3 rejects fields outside agricultural locations and unsafe next field numbering', () => {
+  const base=fullState();
+  const field={
+    id:'field-3',
+    locationId:'dark-forest',
+    cycleCropId:null,
+    cells:[null,null,null,null]
+  };
+  assert.equal(migrateSave({
+    schemaVersion:3,
+    savedAt:1,
+    state:{...base,farming:{...base.farming,fields:[field],nextFieldNumber:4}}
+  }),null);
+
+  const validField={...field,locationId:'meadow'};
+  assert.equal(migrateSave({
+    schemaVersion:3,
+    savedAt:1,
+    state:{...base,farming:{...base.farming,fields:[validField],nextFieldNumber:3}}
+  }),null);
+});

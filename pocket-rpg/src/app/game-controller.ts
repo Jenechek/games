@@ -49,6 +49,7 @@ export interface UiGameState {
   economy: EconomyState;
   diplomacy: DiplomacyState;
   university: UniversityState;
+  summons:SummonRosterState;
 }
 
 export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'diplomacy' | 'university' | 'inventory';
@@ -92,7 +93,8 @@ export function createNewGame(): UiGameState {
     crafting:createDefaultCraftingState(starterRecipeIds),
     economy:createDefaultEconomyState(),
     diplomacy:createDefaultDiplomacyState(),
-    university:createDefaultUniversityState()
+    university:createDefaultUniversityState(),
+    summons:createDefaultSummonRoster()
   };
 }
 

@@ -5,15 +5,20 @@ import type { InjuryState } from '../game-core/injuries/types.js';
 import { cleanInjuryState, clearAllInjuries, healInjuries, injuryPenaltySummary, totalInjurySeverity } from '../game-core/injuries/injuries.js';
 import { isForcedRest, isRecoveryLocked, isUnconscious, reconstructRecovery } from '../game-core/injuries/defeat.js';
 import type { InventoryState } from '../game-core/items/inventory.js';
+import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
+import type { FarmingState, FarmingWork, HarvestResult } from '../game-core/peaceful/farming/types.js';
 
 export interface UiGameState {
   attributes: Record<AttributeId, number>;
   world: WorldState;
   gold: number;
   injuries: InjuryState;
+  farming: FarmingState;
 }
 
-export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'merchant' | 'inventory';
+export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'merchant' | 'inventory';
+export type InterruptingActionKind = 'travel' | 'combat' | 'merchant' | 'inventory';
+export type AgricultureKind = 'safe' | 'neutral';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
 export type RecoveryView =
   | {kind:'ready'; remainingMs:0}
@@ -43,7 +48,8 @@ export function createNewGame(): UiGameState {
     attributes:{strength:10,agility:10,intuition:10,vitality:10,wisdom:10,luck:10,charisma:10,intelligence:10},
     world:{locationId:'tillanium',travel:null,arrivalCount:0},
     gold:100,
-    injuries:cleanInjuryState()
+    injuries:cleanInjuryState(),
+    farming:createDefaultFarmingState()
   };
 }
 
@@ -60,6 +66,46 @@ export function getRecoveryView(injuries: InjuryState, now: number): RecoveryVie
 export function canPerformAction(injuries: InjuryState, action: RecoveryActionKind, now: number): boolean {
   if (action === 'inventory') return true;
   return !isRecoveryLocked(injuries, now);
+}
+
+export function canStartFishingWithFarming(farmingWork: FarmingWork | null | undefined): boolean {
+  return farmingWork == null;
+}
+
+export function shouldInterruptFarmingWork(action: InterruptingActionKind): boolean {
+  return action !== 'inventory';
+}
+
+export function applyHarvestResults(
+  inventory: InventoryState,
+  harvests: HarvestResult[]
+): InventoryState {
+  if (harvests.length === 0) return inventory;
+  const stacks = inventory.stacks.map(stack => ({...stack}));
+  for (const result of harvests) {
+    const existing = stacks.find(stack => stack.itemId === result.itemId);
+    if (existing) existing.quantity += result.quantity;
+    else stacks.push({itemId:result.itemId,quantity:result.quantity});
+  }
+  return {stacks};
+}
+
+export function rollFarmingInterruption(
+  agriculture: AgricultureKind | undefined,
+  rng: Pick<SeededRng, 'chance'>
+): 'young-wolf' | null {
+  if (agriculture !== 'neutral') return null;
+  return rng.chance(0.02) ? 'young-wolf' : null;
+}
+
+export function scaleFarmingAmbushStats(
+  maxHp: number,
+  damage: number
+): {maxHp:number;damage:number} {
+  return {
+    maxHp:Math.max(1,Math.round(maxHp*0.7)),
+    damage:Math.max(1,Math.round(damage*0.7))
+  };
 }
 
 export function getInjuryMedicineAvailability(

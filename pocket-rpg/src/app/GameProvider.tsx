@@ -43,7 +43,7 @@ import type {
   GatheringSession
 } from '../game-core/peaceful/gathering/types';
 import { gatheringResourceDefs } from '../content/gathering';
-import { buyItem, sellItem, type MarketState } from '../game-core/economy/merchant';
+import { applyBuyPressure, applySellProgress } from '../game-core/economy/merchant';
 import { IndexedDbSaveStore } from '../storage/indexed-db';
 import { reconstructState } from '../game-core/game-state';
 import { applyDefeatConsequences } from '../game-core/injuries/defeat';
@@ -51,7 +51,7 @@ import { injuryPenaltySummary } from '../game-core/injuries/injuries';
 import type { InventoryState } from '../game-core/items/inventory';
 import { addInventoryStack, normalizedStackClass, removeInventoryStack } from '../game-core/items/inventory';
 import { itemDefs } from '../content/items';
-import { createEquipmentInstance } from '../game-core/items/equipment';
+import { createEquipmentInstance, createLegacyEquipmentInstance } from '../game-core/items/equipment';
 import {
   craftRecipeBatch,
   rerollEquipment,
@@ -64,6 +64,8 @@ import {
   equipmentUpgradeMaterialType
 } from '../content/crafting';
 import { cities } from '../content/cities';
+import { merchants } from '../content/merchants';
+import { equipmentSellQuote, stackBuyQuote, stackSellQuote } from './market-controller';
 import { applyCombatConsumable } from '../game-core/alchemy/consumables';
 
 interface RuntimeState extends UiGameState {
@@ -77,7 +79,6 @@ interface RuntimeState extends UiGameState {
   combatItemUsedRound:number|null;
   loot?:LootResult|null;
   log:string[];
-  market:MarketState;
 }
 interface Commands {
   travelTo(id:string):void;
@@ -96,8 +97,9 @@ interface Commands {
   abandonField(fieldId:string):void;
   startGatheringCmd(focus:GatheringFocus):void;
   stopGatheringCmd():void;
-  buy(id:string,price:number):void;
-  sell(id:string,price:number):void;
+  buy(id:string,quantity:number):void;
+  sellStack(id:string,itemClass:number,quantity:number):void;
+  sellEquipment(instanceId:string):void;
   useInjuryMedicine(tier:InjuryMedicineTier):void;
   craft(recipeId:string,quantity:number,policy?:MaterialPolicy):void;
   upgradeEquipment(instanceId:string):void;
@@ -126,8 +128,7 @@ function initial():RuntimeState {
     style:'balanced',
     combatItemUsedRound:null,
     loot:null,
-    log:['Вы прибыли в Тилланиум.'],
-    market:{gold:g.gold,inventory,pressure:{},pressureUpdatedAt:Date.now()}
+    log:['Вы прибыли в Тилланиум.']
   };
 }
 
@@ -180,9 +181,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
           farming:restored.farming,
           gathering:restored.gathering,
           crafting:restored.crafting,
+          economy:restored.economy,
           farmingWork:null,
-          gatheringSession:null,
-          market:{...s.market,gold:restored.character.gold,inventory:restored.inventory}
+          gatheringSession:null
         }));
       }
     }).catch(()=>{}).finally(()=>setHydrated(true));
@@ -198,11 +199,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         injuries:state.injuries,
         farming:state.farming,
         gathering:state.gathering,
-        crafting:state.crafting
+        crafting:state.crafting,
+        economy:state.economy
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting]);
+  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
@@ -224,8 +226,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           ...n,
           farming:step.state,
           farmingWork:step.work,
-          inventory,
-          market:{...n.market,inventory}
+          inventory
         };
 
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
@@ -277,7 +278,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
           gathering:gathered.gathering,
           gatheringSession:gathered.session,
           inventory,
-          market:{...n.market,inventory},
           log:resultLog.length?[...n.log,...resultLog]:n.log
         };
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
@@ -392,7 +392,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             inventory=addInventoryStack(inventory,it.itemId,it.quantity,1);
           }
         }
-        return{...s,inventory,crafting,market:{...s.market,inventory},loot:null};
+        return{...s,inventory,crafting,loot:null};
       });
     },
     startFishingCmd(){
@@ -525,22 +525,138 @@ export function GameProvider({children}:{children:React.ReactNode}){
         : s
       );
     },
-    buy(id,price){
+    buy(id,quantity){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'merchant',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя торговать: персонаж восстанавливается.']};
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        const merchant=city?merchants[city.merchantId]:undefined;
+        const def=itemDefs[id];
+        if(!city||!merchant?.items.includes(id)||!def)return s;
+        if(s.combat||!canPerformAction(s.injuries,'merchant',now)){
+          return{...s,log:[...s.log,'Сейчас нельзя торговать.']};
+        }
+        const actualQuantity=def.slot?1:Math.max(1,Math.floor(quantity));
         try{
-          const m=buyItem({...s.market,gold:s.gold,inventory:s.inventory},id,1,Date.now(),price);
-          return{...s,gold:m.gold,inventory:m.inventory,market:m,farmingWork:null,gatheringSession:null};
-        }catch{return{...s,farmingWork:null,gatheringSession:null};}
+          const itemClass=def.materialClass??1;
+          const quote=stackBuyQuote(
+            s.economy,
+            city.id,
+            id,
+            itemClass,
+            actualQuantity,
+            now,
+            s.attributes.charisma
+          );
+          if(s.gold<quote.total){
+            return{...s,log:[...s.log,'Недостаточно золота для покупки.']};
+          }
+
+          let inventory=s.inventory;
+          let crafting=s.crafting;
+          if(def.slot){
+            const instance=createLegacyEquipmentInstance(`eq-${crafting.nextEquipmentId}`,def);
+            inventory={
+              stacks:s.inventory.stacks.map(stack=>({...stack})),
+              equipment:[...(s.inventory.equipment??[]),instance]
+            };
+            crafting={...crafting,nextEquipmentId:crafting.nextEquipmentId+1};
+          }else{
+            inventory=addInventoryStack(s.inventory,id,actualQuantity,itemClass);
+          }
+
+          const economy=applyBuyPressure(s.economy,city.id,id,quote,now);
+          return{
+            ...s,
+            gold:s.gold-quote.total,
+            inventory,
+            crafting,
+            economy,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Куплено: ${def.label} ×${actualQuantity} за ${quote.total.toFixed(2)}.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Покупка недоступна.']};
+        }
       });
     },
-    sell(id,price){
+    sellStack(id,itemClass,quantity){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'merchant',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя торговать: персонаж восстанавливается.']};
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        const def=itemDefs[id];
+        if(!city||!def)return s;
+        if(s.combat||!canPerformAction(s.injuries,'merchant',now)){
+          return{...s,log:[...s.log,'Сейчас нельзя торговать.']};
+        }
+        const stack=s.inventory.stacks.find(entry=>
+          entry.itemId===id
+          &&normalizedStackClass(entry)===itemClass
+        );
+        const actualQuantity=Math.min(stack?.quantity??0,Math.max(1,Math.floor(quantity)));
+        if(actualQuantity<=0)return s;
+
         try{
-          const m=sellItem({...s.market,gold:s.gold,inventory:s.inventory},id,1,Date.now(),price);
-          return{...s,gold:m.gold,inventory:m.inventory,market:m,farmingWork:null,gatheringSession:null};
-        }catch{return{...s,farmingWork:null,gatheringSession:null};}
+          const quote=stackSellQuote(
+            s.economy,
+            city.id,
+            id,
+            itemClass,
+            actualQuantity,
+            now,
+            s.attributes.charisma
+          );
+          const inventory=removeInventoryStack(s.inventory,id,actualQuantity,itemClass);
+          const economy=applySellProgress(s.economy,city.id,id,quote,now);
+          return{
+            ...s,
+            gold:s.gold+quote.total,
+            inventory,
+            economy,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Продано: ${def.label} ×${actualQuantity} за ${quote.total.toFixed(2)}.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Этот предмет нельзя продать здесь.']};
+        }
+      });
+    },
+    sellEquipment(instanceId){
+      setState(s=>{
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        if(!city||s.combat||!canPerformAction(s.injuries,'merchant',now))return s;
+        const instance=(s.inventory.equipment??[]).find(entry=>entry.instanceId===instanceId);
+        if(!instance)return s;
+        try{
+          const quote=equipmentSellQuote(
+            s.economy,
+            city.id,
+            instance,
+            now,
+            s.attributes.charisma
+          );
+          const inventory={
+            stacks:s.inventory.stacks.map(stack=>({...stack})),
+            equipment:(s.inventory.equipment??[]).filter(entry=>entry.instanceId!==instanceId)
+          };
+          const economy=applySellProgress(s.economy,city.id,instance.itemId,quote,now);
+          return{
+            ...s,
+            gold:s.gold+quote.total,
+            inventory,
+            economy,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Продано: ${itemDefs[instance.itemId]?.label??instance.itemId} за ${quote.total.toFixed(2)}.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Эту экипировку нельзя продать здесь.']};
+        }
       });
     },
     useInjuryMedicine(tier){
@@ -551,7 +667,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
           ...s,
           inventory:result.inventory,
           injuries:result.injuries,
-          market:{...s.market,inventory:result.inventory},
           log:[...s.log,'Травмы обработаны лекарством.']
         };
       });
@@ -584,7 +699,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
             ...s,
             crafting:result.state,
             inventory:result.inventory,
-            market:{...s.market,inventory:result.inventory},
             fishing:null,
             farmingWork:null,
             gatheringSession:null,
@@ -619,7 +733,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
             ...s,
             gold:result.gold,
             inventory:result.inventory,
-            market:{...s.market,gold:result.gold,inventory:result.inventory},
             log:[...s.log,`Предмет улучшен до +${instance.upgradeLevel+1}.`]
           };
         }catch{
@@ -648,7 +761,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
             ...s,
             gold:result.gold,
             inventory:result.inventory,
-            market:{...s.market,gold:result.gold,inventory:result.inventory},
             log:[...s.log,'Свойство предмета переброшено.']
           };
         }catch{
@@ -680,7 +792,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
           combat:{...s.combat,player:applied.combatant},
           combatItemUsedRound:s.combat.round,
           inventory,
-          market:{...s.market,inventory},
           log:[...s.log,`Использовано: ${itemDefs[itemId].label}.`]
         };
       });

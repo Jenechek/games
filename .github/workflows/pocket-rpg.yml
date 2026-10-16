@@ -3,7 +3,7 @@ name: Pocket RPG verification
 on:
   push:
     branches:
-      - codex/pocket-rpg-first-vertical
+      - "codex/pocket-rpg-*"
     paths:
       - "pocket-rpg/**"
       - ".github/workflows/pocket-rpg.yml"

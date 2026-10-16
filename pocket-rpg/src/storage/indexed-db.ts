@@ -147,7 +147,8 @@ function normalizeState(state:SaveInput):GameState{
       crafting:state.crafting,
       economy:createDefaultEconomyState(),
       diplomacy:createDefaultDiplomacyState(),
-      university:createDefaultUniversityState()
+      university:createDefaultUniversityState(),
+      summons:createDefaultSummonRoster()
     };
   }
 

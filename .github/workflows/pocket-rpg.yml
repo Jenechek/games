@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - "codex/pocket-rpg-*"
     paths:
       - "pocket-rpg/**"
       - ".github/workflows/pocket-rpg.yml"
@@ -15,6 +14,10 @@ on:
       - "pocket-rpg/**"
       - ".github/workflows/pocket-rpg.yml"
   workflow_dispatch:
+
+concurrency:
+  group: pocket-rpg-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:

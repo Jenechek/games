@@ -18,6 +18,7 @@ import {
   type UiGameState
 } from './game-controller';
 import { SeededRng } from '../game-core/rng';
+import type { AttributeId } from '../game-core/types';
 import { locations } from '../content/locations';
 import { enemies } from '../content/enemies';
 import { resolveRound } from '../game-core/combat/resolution';
@@ -43,7 +44,8 @@ import type {
   GatheringSession
 } from '../game-core/peaceful/gathering/types';
 import { gatheringResourceDefs } from '../content/gathering';
-import { applyBuyPressure, applySellProgress } from '../game-core/economy/merchant';
+import { cropDefs } from '../content/farming';
+import { applyBuyPressure, applySellProgress, tradingXpForSale } from '../game-core/economy/merchant';
 import { IndexedDbSaveStore } from '../storage/indexed-db';
 import { reconstructState } from '../game-core/game-state';
 import { applyDefeatConsequences } from '../game-core/injuries/defeat';
@@ -76,6 +78,21 @@ import {
 } from '../game-core/diplomacy/diplomacy';
 import { factions } from '../content/factions';
 import { basePrices } from '../content/economy';
+import {
+  UNIVERSITY_UNLOCK_LEVEL,
+  startRetraining
+} from '../game-core/university/retraining';
+import {
+  addCharacterXp,
+  combatCharacterXp,
+  type CharacterXpSource
+} from '../game-core/progression/character';
+import {
+  prepareSummonsForCombat,
+  reconstructSummonRecovery,
+  syncSummonsFromCombat
+} from '../game-core/summons/summons';
+import { summonDefinitions } from '../content/summons';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -117,6 +134,7 @@ interface Commands {
   factionAudience():void;
   factionMediation():void;
   completeFactionRequest():void;
+  startAttributeRetraining(from:AttributeId,to:AttributeId,percent:number):void;
 }
 const Ctx=createContext<{state:RuntimeState;commands:Commands}|null>(null);
 
@@ -144,7 +162,31 @@ function initial():RuntimeState {
   };
 }
 
-function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatState {
+function awardCharacterXp(
+  state:RuntimeState,
+  amount:number,
+  source:CharacterXpSource
+):RuntimeState{
+  if(!(amount>0))return state;
+  const result=addCharacterXp({
+    level:state.level,
+    xp:state.xp,
+    attributes:state.attributes,
+    attributeXp:state.attributeXp
+  },amount,source);
+  return {
+    ...state,
+    level:result.state.level,
+    xp:result.state.xp,
+    attributes:result.state.attributes,
+    attributeXp:result.state.attributeXp,
+    log:result.levelsGained>0
+      ?[...state.log,`Новый уровень: ${result.state.level}. Характеристики повышены автоматически.`]
+      :state.log
+  };
+}
+
+function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Date.now()):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
   const playerMaxHp=Math.max(1,Math.round(100*penalties.maxHpMultiplier));
@@ -170,7 +212,8 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatS
       mana:50,maxMana:50,stamina:100,maxStamina:100,
       stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,style:'balanced',
       toxicity:0,effects:[]
-    }
+    },
+    summons:prepareSummonsForCombat(state.summons,summonDefinitions,now)
   };
 }
 
@@ -186,7 +229,11 @@ export function GameProvider({children}:{children:React.ReactNode}){
         const restored=reconstructState(saved,Date.now());
         setState(s=>({
           ...s,
+          level:restored.character.level,
+          xp:restored.character.xp,
           gold:restored.character.gold,
+          attributes:restored.character.attributes,
+          attributeXp:restored.character.attributeXp,
           world:restored.world,
           inventory:restored.inventory,
           injuries:restored.injuries,
@@ -195,6 +242,8 @@ export function GameProvider({children}:{children:React.ReactNode}){
           crafting:restored.crafting,
           economy:restored.economy,
           diplomacy:restored.diplomacy,
+          university:restored.university,
+          summons:restored.summons,
           farmingWork:null,
           gatheringSession:null
         }));
@@ -206,7 +255,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     if(!hydrated)return;
     const id=setTimeout(()=>{
       saveStore.current.save({
-        character:{level:1,xp:0,gold:state.gold},
+        character:{level:state.level,xp:state.xp,gold:state.gold,attributes:state.attributes,attributeXp:state.attributeXp},
         world:state.world,
         inventory:state.inventory,
         injuries:state.injuries,
@@ -214,34 +263,50 @@ export function GameProvider({children}:{children:React.ReactNode}){
         gathering:state.gathering,
         crafting:state.crafting,
         economy:state.economy,
-        diplomacy:state.diplomacy
+        diplomacy:state.diplomacy,
+        university:state.university,
+        summons:state.summons
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
       const now=Date.now();
       let n:RuntimeState={...s,...tickGame(s,now)};
+      if(!n.combat){
+        n={...n,summons:reconstructSummonRecovery(n.summons,summonDefinitions,now)};
+      }
 
       while(n.farmingWork && now>=n.farmingWork.nextAt){
-        const agriculture=locations[n.farmingWork.locationId]?.agriculture;
-        const stepAt=n.farmingWork.nextAt;
+        const workBefore=n.farmingWork;
+        const agriculture=locations[workBefore.locationId]?.agriculture;
+        const stepAt=workBefore.nextAt;
         const step=advanceFarmingWork(
           n.farming,
-          n.farmingWork,
+          workBefore,
           stepAt,
           rng.current,
           n.attributes.luck
         );
         const inventory=applyHarvestResults(n.inventory,step.harvests);
+        let farmingCharacterXp=0;
+        if(workBefore.type==='plant'){
+          farmingCharacterXp=(cropDefs[workBefore.cropId]?.harvestXp??0)*0.5*step.completedCells;
+        }else if(workBefore.type==='harvest'){
+          farmingCharacterXp=step.harvests.reduce(
+            (sum,result)=>sum+(cropDefs[result.cropId]?.harvestXp??0)*(result.rare?2:1),
+            0
+          );
+        }
         n={
           ...n,
           farming:step.state,
           farmingWork:step.work,
           inventory
         };
+        n=awardCharacterXp(n,farmingCharacterXp,'farming');
 
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
           n={
@@ -294,12 +359,18 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory,
           log:resultLog.length?[...n.log,...resultLog]:n.log
         };
+        const gatheringCharacterXp=gathered.results.reduce(
+          (sum,result)=>sum+(gatheringResourceDefs[result.resourceId]?.xp??0)*(result.rare?2:1),
+          0
+        );
+        n=awardCharacterXp(n,gatheringCharacterXp,'gathering');
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
           n={...n,gatheringSession:null,log:[...n.log,'Сбор остановлен: перегруз достиг 120%.']};
         }
       }
 
       if(n.fishing && !n.farmingWork && !n.gatheringSession && canPerformAction(n.injuries,'fishing',now)){
+        const fishingXpBefore=n.fishingXp;
         const f=advanceFishing(
           n,
           now,
@@ -309,6 +380,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory=>currentLoadRatio(inventory,n.attributes)<1.2
         );
         n={...n,...f};
+        n=awardCharacterXp(n,Math.max(0,f.fishingXp-fishingXpBefore),'fishing');
         if(n.fishing===null){
           n={...n,log:[...n.log,'Рыбалка остановлена: перегруз достиг 120%.']};
         }
@@ -338,12 +410,26 @@ export function GameProvider({children}:{children:React.ReactNode}){
       const pc=chooseAutoAction(s.combat,'player',rng.current);pc.style=s.style;
       const ec=chooseAutoAction(s.combat,'enemy',rng.current);
       const r=resolveRound(s.combat,{player:pc,enemy:ec},rng.current);
-      if(r.state.player.hp<=0)return applyPlayerDefeat(s);
+      const afterRound:RuntimeState={
+        ...s,
+        combat:r.state,
+        summons:syncSummonsFromCombat(
+          s.summons,
+          r.state.summons??[],
+          Date.now()
+        )
+      };
+      if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
       if(r.state.enemy.hp<=0){
+        const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
         const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-        return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+        return awardCharacterXp(
+          {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+          combatCharacterXp(enemyLevel),
+          'combat'
+        );
       }
-      return{...s,combat:r.state,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
+      return{...afterRound,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
     }),5000);
     return()=>clearInterval(id);
   },[state.combatMode,state.paused,state.combat,state.style]);
@@ -358,9 +444,21 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     startEncounter(){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'combat',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
+        const now=Date.now();
+        if(!canPerformAction(s.injuries,'combat',now))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
         const id=locations[s.world.locationId]?.enemies[0];
-        return id?{...s,combat:enemyCombat(id,s),combatItemUsedRound:null,fishing:null,farmingWork:null,gatheringSession:null,log:[...s.log,`Бой: ${enemies[id].label}`]}:s;
+        if(!id)return s;
+        const summons=reconstructSummonRecovery(s.summons,summonDefinitions,now);
+        const prepared={...s,summons};
+        return{
+          ...prepared,
+          combat:enemyCombat(id,prepared,false,now),
+          combatItemUsedRound:null,
+          fishing:null,
+          farmingWork:null,
+          gatheringSession:null,
+          log:[...s.log,`Бой: ${enemies[id].label}`]
+        };
       });
     },
     manualAttack(){
@@ -368,12 +466,26 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!s.combat)return s;
         const ec=chooseAutoAction(s.combat,'enemy',rng.current);
         const r=resolveRound(s.combat,{player:{main:{type:'attack'},style:s.style},enemy:ec},rng.current);
-        if(r.state.player.hp<=0)return applyPlayerDefeat(s);
+        const afterRound:RuntimeState={
+          ...s,
+          combat:r.state,
+          summons:syncSummonsFromCombat(
+            s.summons,
+            r.state.summons??[],
+            Date.now()
+          )
+        };
+        if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
         if(r.state.enemy.hp<=0){
+          const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
           const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-          return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+          return awardCharacterXp(
+            {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+            combatCharacterXp(enemyLevel),
+            'combat'
+          );
         }
-        return{...s,combat:r.state,combatItemUsedRound:null};
+        return{...afterRound,combatItemUsedRound:null};
       });
     },
     togglePause(){setState(s=>({...s,paused:!s.paused}));},
@@ -631,7 +743,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           );
           const inventory=removeInventoryStack(s.inventory,id,actualQuantity,itemClass);
           const economy=applySellProgress(s.economy,city.id,id,quote,now);
-          return{
+          return awardCharacterXp({
             ...s,
             gold:s.gold+quote.total,
             inventory,
@@ -640,7 +752,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Продано: ${def.label} ×${actualQuantity} за ${quote.total.toFixed(2)}.`]
-          };
+          },tradingXpForSale(quote.total),'trading');
         }catch{
           return{...s,log:[...s.log,'Этот предмет нельзя продать здесь.']};
         }
@@ -666,7 +778,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             equipment:(s.inventory.equipment??[]).filter(entry=>entry.instanceId!==instanceId)
           };
           const economy=applySellProgress(s.economy,city.id,instance.itemId,quote,now);
-          return{
+          return awardCharacterXp({
             ...s,
             gold:s.gold+quote.total,
             inventory,
@@ -675,7 +787,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Продано: ${itemDefs[instance.itemId]?.label??instance.itemId} за ${quote.total.toFixed(2)}.`]
-          };
+          },tradingXpForSale(quote.total),'trading');
         }catch{
           return{...s,log:[...s.log,'Эту экипировку нельзя продать здесь.']};
         }
@@ -717,7 +829,8 @@ export function GameProvider({children}:{children:React.ReactNode}){
             .filter(entry=>entry.rarity)
             .map(entry=>entry.rarity)
             .join(', ');
-          return{
+          const characterXp=result.results.reduce((sum,entry)=>sum+entry.xp,0);
+          return awardCharacterXp({
             ...s,
             crafting:result.state,
             inventory:result.inventory,
@@ -725,7 +838,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Создано: ${recipe.label} ×${result.results.length}${rarityText?` [${rarityText}]`:''}.`]
-          };
+          },characterXp,recipe.skillId==='alchemy'?'alchemy':'crafting');
         }catch{
           return{...s,log:[...s.log,`Не удалось создать: ${recipe.label}.`]};
         }
@@ -834,7 +947,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             now,
             rng:rng.current
           });
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -847,7 +960,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             log:[...s.log,result.success
               ?`Аудиенция прошла успешно. Отношения с ${factions[factionId].label}: +1.`
               :'Аудиенция не дала результата.']
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Новая аудиенция пока недоступна.']};
         }
@@ -869,7 +982,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             now,
             rng:rng.current
           });
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -882,7 +995,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             log:[...s.log,result.success
               ?`Медиация удалась. Отношения с ${factions[factionId].label}: +2.`
               :`Медиация провалилась. Отношения с ${factions[factionId].label}: −1.`]
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Медиация пока недоступна.']};
         }
@@ -918,7 +1031,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             request.quantity,
             normalizedStackClass(stack)
           );
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -931,9 +1044,45 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Поручение выполнено: +3 отношения, +${result.goldReward.toFixed(2)} золота.`]
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Поручение этого периода уже выполнено.']};
+        }
+      });
+    },
+    startAttributeRetraining(from,to,percent){
+      setState(s=>{
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        if(!city?.university){
+          return{...s,log:[...s.log,'В этом городе нет университета.']};
+        }
+        if(s.level<UNIVERSITY_UNLOCK_LEVEL){
+          return{...s,log:[...s.log,`Переобучение доступно с уровня ${UNIVERSITY_UNLOCK_LEVEL}.`]};
+        }
+        if(s.combat||!canPerformAction(s.injuries,'university',now)){
+          return{...s,log:[...s.log,'Сейчас нельзя начать переобучение.']};
+        }
+        try{
+          const university=startRetraining({
+            state:s.university,
+            attributes:s.attributes,
+            level:s.level,
+            from,
+            to,
+            percent,
+            now
+          });
+          return{
+            ...s,
+            university,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Начато переобучение: ${from} → ${to}, ${percent}% доступной части. Завершение через 1 час.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Такое перераспределение сейчас недоступно.']};
         }
       });
     }

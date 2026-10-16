@@ -47,7 +47,7 @@ test('gathering results merge ordinary and rare stacks into inventory',()=>{
   ]);
   assert.deepEqual(next.stacks,[
     {itemId:'wild-herb',quantity:5},
-    {itemId:'wild-herb-rare',quantity:1}
+    {itemId:'wild-herb-rare',quantity:1,itemClass:2}
   ]);
 });
 

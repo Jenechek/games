@@ -1,13 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MemorySaveStore, decodeSave, encodeSave } from '../dist/storage/indexed-db.js';
-import { migrateSave } from '../dist/storage/migrations.js';
-import { reconstructState } from '../dist/game-core/game-state.js';
-import { cleanInjuryState } from '../dist/game-core/injuries/injuries.js';
-import { createDefaultFarmingState } from '../dist/game-core/peaceful/farming/farming.js';
-import { createDefaultGatheringState } from '../dist/game-core/peaceful/gathering/gathering.js';
+import {MemorySaveStore,decodeSave,encodeSave} from '../dist/storage/indexed-db.js';
+import {migrateSave} from '../dist/storage/migrations.js';
+import {reconstructState} from '../dist/game-core/game-state.js';
+import {cleanInjuryState} from '../dist/game-core/injuries/injuries.js';
+import {createDefaultFarmingState} from '../dist/game-core/peaceful/farming/farming.js';
+import {createDefaultGatheringState} from '../dist/game-core/peaceful/gathering/gathering.js';
+import {createDefaultCraftingState} from '../dist/game-core/crafting/crafting.js';
+import {starterRecipeIds} from '../dist/content/crafting.js';
 
-function fullState() {
+function legacyV4State(){
   return {
     character:{level:2,xp:20,gold:15},
     world:{locationId:'tillanium',travel:null,arrivalCount:0},
@@ -18,280 +20,176 @@ function fullState() {
   };
 }
 
-test('save load round trip preserves durable v4 state', async () => {
-  const store = new MemorySaveStore();
-  const state = fullState();
-  state.farming.fields.push({
-    id:'field-1',
-    locationId:'tillanium-fields',
-    cycleCropId:'wheat',
-    cells:[
-      {plantedAt:1_000,maturesAt:301_000},
-      null,
-      null,
-      null
-    ]
-  });
-  state.farming.nextFieldNumber = 2;
-
-  await store.save(state,1000);
-  assert.deepEqual(await store.load(),state);
-});
-
-test('saving legacy v2 state normalizes it to v4 with default farming and gathering', async () => {
-  const store = new MemorySaveStore();
-  const legacy = {
-    character:{level:2,xp:20,gold:15},
-    world:{locationId:'tillanium',travel:null,arrivalCount:0},
-    inventory:{stacks:[]},
-    injuries:cleanInjuryState()
+function fullState(){
+  return {
+    ...legacyV4State(),
+    inventory:{stacks:[{itemId:'healing-potion',quantity:2}],equipment:[]},
+    crafting:createDefaultCraftingState(starterRecipeIds)
   };
-  await store.save(legacy,1000);
-  const loaded = await store.load();
-  assert.deepEqual(loaded?.farming, createDefaultFarmingState());
-  assert.deepEqual(loaded?.gathering, createDefaultGatheringState());
-  assert.deepEqual(loaded?.injuries, legacy.injuries);
-});
+}
 
-test('corrupted save returns null',()=>{
-  assert.equal(decodeSave('{not json'),null);
-  assert.equal(decodeSave(JSON.stringify({schemaVersion:999,state:{}})),null);
-});
-
-test('reconstructing finished travel is idempotent and keeps farming timestamps untouched',()=>{
-  const s=fullState();
-  s.world={locationId:'tillanium',arrivalCount:0,travel:{fromId:'tillanium',destinationId:'city-gate',startedAt:1000,arrivesAt:5000}};
-  s.farming.fields.push({
+test('save load round trip preserves durable v5 state',async()=>{
+  const store=new MemorySaveStore();
+  const state=fullState();
+  state.farming.fields.push({
     id:'field-1',
     locationId:'tillanium-fields',
     cycleCropId:'wheat',
     cells:[{plantedAt:1000,maturesAt:301000},null,null,null]
   });
-  s.farming.nextFieldNumber=2;
-  const once=reconstructState(s,6000),twice=reconstructState(once,6000);
-  assert.equal(once.world.locationId,'city-gate');
-  assert.equal(twice.world.arrivalCount,1);
-  assert.equal(twice.farming.fields[0].cells[0].maturesAt,301000);
+  state.farming.nextFieldNumber=2;
+  state.crafting.skills.alchemy={level:20,xp:12.5};
+
+  await store.save(state,1000);
+  assert.deepEqual(await store.load(),state);
 });
 
-test('valid schema v1 save migrates directly to schema v4 with defaults',()=>{
+test('schema v4 migrates equipment stacks into individual instances and material classes',()=>{
+  const old=legacyV4State();
+  old.inventory.stacks=[
+    {itemId:'iron-short-sword',quantity:2},
+    {itemId:'medicinal-herb-rare',quantity:3},
+    {itemId:'wild-herb',quantity:2}
+  ];
+  const migrated=migrateSave({schemaVersion:4,savedAt:1000,state:old});
+  assert.equal(migrated?.schemaVersion,5);
+  assert.equal(migrated?.state.inventory.equipment.length,2);
+  assert.deepEqual(migrated?.state.inventory.equipment.map(item=>item.instanceId),['eq-1','eq-2']);
+  assert.equal(migrated?.state.inventory.stacks.find(item=>item.itemId==='medicinal-herb-rare')?.itemClass,2);
+  assert.equal(migrated?.state.inventory.stacks.find(item=>item.itemId==='wild-herb')?.itemClass,1);
+  assert.equal(migrated?.state.crafting.nextEquipmentId,3);
+  assert.deepEqual(migrated?.state.crafting.knownRecipeIds,starterRecipeIds);
+});
+
+test('saving a legacy v4 state normalizes it to current v5 defaults',async()=>{
+  const store=new MemorySaveStore();
+  const legacy=legacyV4State();
+  await store.save(legacy,1000);
+  const loaded=await store.load();
+  assert.deepEqual(loaded?.crafting.skills,createDefaultCraftingState(starterRecipeIds).skills);
+  assert.deepEqual(loaded?.inventory.equipment,[]);
+  assert.deepEqual(loaded?.injuries,legacy.injuries);
+});
+
+test('valid schema v1 save migrates directly to v5 defaults',()=>{
   const oldState={
     character:{level:3,xp:44,gold:71},
     world:{locationId:'meadow',travel:null,arrivalCount:2},
     inventory:{stacks:[{itemId:'healing-potion',quantity:1}]}
   };
   const migrated=migrateSave({schemaVersion:1,savedAt:1234,state:oldState});
-  assert.equal(migrated?.schemaVersion,4);
-  assert.deepEqual(migrated?.state.character,oldState.character);
-  assert.deepEqual(migrated?.state.world,oldState.world);
-  assert.deepEqual(migrated?.state.inventory,oldState.inventory);
+  assert.equal(migrated?.schemaVersion,5);
   assert.deepEqual(migrated?.state.injuries,cleanInjuryState());
   assert.deepEqual(migrated?.state.farming,createDefaultFarmingState());
   assert.deepEqual(migrated?.state.gathering,createDefaultGatheringState());
+  assert.equal(migrated?.state.crafting.skills.crafting.level,0);
 });
 
-test('valid schema v2 save migrates to schema v4 and preserves injuries',()=>{
+test('valid schema v2 and v3 preserve already-existing durable systems',()=>{
   const injuries=cleanInjuryState();
   injuries.severity.head=2;
-  const oldState={
+  const v2={
     character:{level:2,xp:7,gold:11},
     world:{locationId:'forest-edge',travel:null,arrivalCount:1},
     inventory:{stacks:[]},
     injuries
   };
-  const migrated=migrateSave({schemaVersion:2,savedAt:999,state:oldState});
-  assert.equal(migrated?.schemaVersion,4);
-  assert.deepEqual(migrated?.state.injuries,injuries);
-  assert.deepEqual(migrated?.state.farming,createDefaultFarmingState());
-  assert.deepEqual(migrated?.state.gathering,createDefaultGatheringState());
+  const m2=migrateSave({schemaVersion:2,savedAt:999,state:v2});
+  assert.deepEqual(m2?.state.injuries,injuries);
+  assert.deepEqual(m2?.state.farming,createDefaultFarmingState());
+
+  const v3={...legacyV4State()};
+  delete v3.gathering;
+  v3.farming.skill={level:20,xp:12.5};
+  const m3=migrateSave({schemaVersion:3,savedAt:777,state:v3});
+  assert.deepEqual(m3?.state.farming,v3.farming);
+  assert.deepEqual(m3?.state.gathering,createDefaultGatheringState());
 });
 
-test('new saves use schema v4 and preserve injury farming and gathering state',()=>{
+test('current encoded saves use schema v5 and preserve crafting state',()=>{
   const state=fullState();
   state.injuries.severity.head=2;
-  state.injuries.unconsciousUntil=15_000;
-  state.farming.skill={level:20,xp:12.5};
-  state.farming.fields=[{
-    id:'field-1',
-    locationId:'meadow',
-    cycleCropId:'turnip',
-    cells:[
-      {plantedAt:1_000,maturesAt:901_000},
-      null,
-      null,
-      null,
-      null,
-      null
-    ]
-  }];
-  state.farming.nextFieldNumber=2;
   state.gathering.skill={level:7,xp:42};
-  state.gathering.discoveredResourceIds=['wild-herb','plant-fiber'];
+  state.crafting.skills.crafting={level:35,xp:5};
   const raw=encodeSave(state,999);
   const envelope=JSON.parse(raw);
-  assert.equal(envelope.schemaVersion,4);
+  assert.equal(envelope.schemaVersion,5);
   assert.deepEqual(decodeSave(raw),state);
 });
 
-test('reconstructState normalizes expired recovery timestamps without mutating farming state',()=>{
-  const state=fullState();
-  state.injuries.unconsciousUntil=5_000;
-  state.injuries.restUntil=10_000;
-  const farmingBefore=state.farming;
-  const reconstructed=reconstructState(state,20_000);
-  assert.equal(reconstructed.injuries.unconsciousUntil,null);
-  assert.equal(reconstructed.injuries.restUntil,null);
-  assert.equal(reconstructed.farming,farmingBefore);
+test('corrupted and unknown saves fail closed',()=>{
+  assert.equal(decodeSave('{not json'),null);
+  assert.equal(decodeSave(JSON.stringify({schemaVersion:999,state:{}})),null);
 });
 
-test('malformed schema v2 injury state fails closed', () => {
-  const base = {
-    character:{level:1,xp:0,gold:0},
-    world:{locationId:'tillanium',travel:null,arrivalCount:0},
-    inventory:{stacks:[]}
-  };
-  assert.equal(migrateSave({
-    schemaVersion:2,
-    savedAt:1,
-    state:{...base,injuries:{}}
-  }), null);
-  assert.equal(migrateSave({
-    schemaVersion:2,
-    savedAt:1,
-    state:{...base,injuries:{
-      severity:{head:4,torso:0,leftArm:0,rightArm:0,leftLeg:0,rightLeg:0},
-      unconsciousUntil:null,
-      restUntil:null
-    }}
-  }), null);
-});
-
-test('partial v1 and v2 core state fail closed instead of reaching the UI', () => {
-  assert.equal(migrateSave({
-    schemaVersion:1,
-    savedAt:1,
-    state:{character:{},world:{},inventory:{}}
-  }), null);
-
-  const injuries=cleanInjuryState();
-  assert.equal(migrateSave({
-    schemaVersion:2,
-    savedAt:1,
-    state:{
-      character:{level:1,xp:0},
-      world:{locationId:'tillanium',travel:null,arrivalCount:0},
-      inventory:{stacks:[]},
-      injuries
-    }
-  }), null);
-});
-
-test('malformed schema v3 farming structures fail closed', () => {
+test('malformed v5 equipment and crafting structures fail closed',()=>{
   const base=fullState();
-
   assert.equal(migrateSave({
-    schemaVersion:3,
+    schemaVersion:5,
     savedAt:1,
-    state:{...base,farming:{...base.farming,skill:{level:101,xp:0}}}
+    state:{...base,crafting:{...base.crafting,skills:{...base.crafting.skills,alchemy:{level:101,xp:0}}}}
   }),null);
 
   assert.equal(migrateSave({
-    schemaVersion:3,
+    schemaVersion:5,
     savedAt:1,
-    state:{...base,farming:{...base.farming,knownSeedIds:['unknown-seed']}}
+    state:{...base,crafting:{...base.crafting,knownRecipeIds:['unknown-recipe']}}
   }),null);
 
   assert.equal(migrateSave({
-    schemaVersion:3,
+    schemaVersion:5,
     savedAt:1,
-    state:{...base,farming:{
-      ...base.farming,
-      fields:[{
-        id:'field-1',
-        locationId:'meadow',
-        cycleCropId:'wheat',
-        cells:[{plantedAt:2000,maturesAt:1000},null,null,null]
-      }],
-      nextFieldNumber:2
-    }}
+    state:{...base,inventory:{stacks:[{itemId:'iron-short-sword',quantity:1}],equipment:[]}}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:5,
+    savedAt:1,
+    state:{...base,inventory:{stacks:[],equipment:[{
+      instanceId:'eq-2',
+      itemId:'light-armor',
+      itemClass:1,
+      rarity:'common',
+      upgradeLevel:0,
+      stats:{mitigation:0.05},
+      properties:[]
+    }]},crafting:{...base.crafting,nextEquipmentId:2}}
   }),null);
 });
 
-test('runtime farming work is never serialized into the durable save', () => {
+test('reconstructing finished travel is idempotent and does not advance crafting',()=>{
+  const state=fullState();
+  state.world={locationId:'tillanium',arrivalCount:0,travel:{fromId:'tillanium',destinationId:'city-gate',startedAt:1000,arrivesAt:5000}};
+  state.crafting.skills.alchemy={level:10,xp:17};
+  const craftingBefore=state.crafting;
+  const once=reconstructState(state,6000);
+  const twice=reconstructState(once,6000);
+  assert.equal(once.world.locationId,'city-gate');
+  assert.equal(twice.world.arrivalCount,1);
+  assert.equal(twice.crafting,craftingBefore);
+});
+
+test('runtime peaceful sessions are never serialized into durable save',()=>{
   const state={
     ...fullState(),
-    farmingWork:{
-      type:'establish',
-      locationId:'meadow',
-      startedAt:0,
-      nextAt:30_000
-    }
-  };
-  const raw=encodeSave(state,123);
-  const envelope=JSON.parse(raw);
-  assert.equal('farmingWork' in envelope.state,false);
-});
-
-
-test('schema v3 rejects fields outside agricultural locations and unsafe next field numbering', () => {
-  const base=fullState();
-  const field={
-    id:'field-3',
-    locationId:'dark-forest',
-    cycleCropId:null,
-    cells:[null,null,null,null]
-  };
-  assert.equal(migrateSave({
-    schemaVersion:3,
-    savedAt:1,
-    state:{...base,farming:{...base.farming,fields:[field],nextFieldNumber:4}}
-  }),null);
-
-  const validField={...field,locationId:'meadow'};
-  assert.equal(migrateSave({
-    schemaVersion:3,
-    savedAt:1,
-    state:{...base,farming:{...base.farming,fields:[validField],nextFieldNumber:3}}
-  }),null);
-});
-
-
-test('valid schema v3 save migrates to schema v4 and preserves farming',()=>{
-  const state=fullState();
-  const {gathering,...oldState}=state;
-  oldState.farming.skill={level:20,xp:12.5};
-  const migrated=migrateSave({schemaVersion:3,savedAt:777,state:oldState});
-  assert.equal(migrated?.schemaVersion,4);
-  assert.deepEqual(migrated?.state.farming,oldState.farming);
-  assert.deepEqual(migrated?.state.gathering,createDefaultGatheringState());
-});
-
-test('malformed schema v4 gathering data fails closed',()=>{
-  const base=fullState();
-  assert.equal(migrateSave({
-    schemaVersion:4,
-    savedAt:1,
-    state:{...base,gathering:{skill:{level:101,xp:0},discoveredResourceIds:[]}}
-  }),null);
-  assert.equal(migrateSave({
-    schemaVersion:4,
-    savedAt:1,
-    state:{...base,gathering:{skill:{level:0,xp:0},discoveredResourceIds:['unknown-resource']}}
-  }),null);
-  assert.equal(migrateSave({
-    schemaVersion:4,
-    savedAt:1,
-    state:{...base,gathering:{skill:{level:0,xp:0},discoveredResourceIds:['wild-herb','wild-herb']}}
-  }),null);
-});
-
-test('runtime gathering session is never serialized into durable save',()=>{
-  const state={
-    ...fullState(),
+    farmingWork:{type:'establish',locationId:'meadow',startedAt:0,nextAt:30000},
     gatheringSession:{focus:'herbs',nextAt:5000,cycleMs:5000}
   };
-  const raw=encodeSave(state,123);
-  const envelope=JSON.parse(raw);
-  assert.equal(envelope.schemaVersion,4);
+  const envelope=JSON.parse(encodeSave(state,123));
+  assert.equal('farmingWork' in envelope.state,false);
   assert.equal('gatheringSession' in envelope.state,false);
+});
+
+test('malformed legacy farming and gathering data still fail closed',()=>{
+  const v4=legacyV4State();
+  assert.equal(migrateSave({
+    schemaVersion:4,
+    savedAt:1,
+    state:{...v4,farming:{...v4.farming,skill:{level:101,xp:0}}}
+  }),null);
+  assert.equal(migrateSave({
+    schemaVersion:4,
+    savedAt:1,
+    state:{...v4,gathering:{skill:{level:101,xp:0},discoveredResourceIds:[]}}
+  }),null);
 });

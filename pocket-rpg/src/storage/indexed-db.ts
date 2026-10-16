@@ -155,7 +155,8 @@ function normalizeState(state:SaveInput):GameState{
       economy:state.economy,
       diplomacy:createDefaultDiplomacyState(),
       university:createDefaultUniversityState(),
-      summons:createDefaultSummonRoster()
+      summons:createDefaultSummonRoster(),
+      classState:createDefaultClassState()
     };
   }
 
@@ -174,7 +175,8 @@ function normalizeState(state:SaveInput):GameState{
       economy:createDefaultEconomyState(),
       diplomacy:createDefaultDiplomacyState(),
       university:createDefaultUniversityState(),
-      summons:createDefaultSummonRoster()
+      summons:createDefaultSummonRoster(),
+      classState:createDefaultClassState()
     };
   }
 

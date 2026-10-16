@@ -28,7 +28,8 @@ function looksLikeLegacyState(value: unknown): value is LegacyGameStateV1 {
 }
 
 function looksLikeGameState(value: unknown): value is GameState {
-  if (!looksLikeLegacyState(value)) return false;
+  if (!isObject(value)) return false;
+  if (!isObject(value.character) || !isObject(value.world) || !isObject(value.inventory)) return false;
   return looksLikeInjuryState(value.injuries);
 }
 

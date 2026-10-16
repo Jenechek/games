@@ -7,6 +7,7 @@ export const skills=[
   {id:'crafting',parentId:'professions',depth:1,label:'Ремесло'},
   {id:'tailoring',parentId:'crafting',depth:2,label:'Портняжное дело'},
   {id:'alchemy',parentId:'professions',depth:1,label:'Алхимия'},
+  {id:'trading',parentId:'professions',depth:1,label:'Торговля'},
   {id:'potions',parentId:'alchemy',depth:2,label:'Зелья'},
   {id:'restorative-potions',parentId:'potions',depth:3,label:'Восстанавливающие зелья'},
   {id:'combat-tonics',parentId:'potions',depth:3,label:'Боевые тоники'}

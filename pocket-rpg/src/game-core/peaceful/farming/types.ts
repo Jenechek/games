@@ -26,4 +26,37 @@ export interface EstablishFieldWork {
   nextAt: number;
 }
 
-export type FarmingWork = EstablishFieldWork;
+export interface PlantFieldWork {
+  type: 'plant';
+  locationId: string;
+  fieldId: string;
+  cropId: string;
+  startedAt: number;
+  nextAt: number;
+  cellMs: number;
+  queue: number[];
+}
+
+export interface HarvestFieldWork {
+  type: 'harvest';
+  locationId: string;
+  fieldId: string;
+  startedAt: number;
+  nextAt: number;
+  cellMs: number;
+  queue: number[];
+}
+
+export type FarmingWork = EstablishFieldWork | PlantFieldWork | HarvestFieldWork;
+
+export interface HarvestResult {
+  cropId: string;
+  itemId: string;
+  quantity: number;
+  rare: boolean;
+}
+
+export interface RandomSource {
+  next(): number;
+  chance(probability: number): boolean;
+}

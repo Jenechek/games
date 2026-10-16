@@ -15,12 +15,21 @@ export interface UiGameState {
 
 export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'merchant' | 'inventory';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
+export type RecoveryView =
+  | {kind:'ready'; remainingMs:0}
+  | {kind:'unconscious'|'forced-rest'; remainingMs:number};
 
 export interface InjuryMedicineResult {
   ok: boolean;
   reason?: 'combat' | 'unconscious' | 'forced-rest' | 'no-injuries' | 'missing-item';
   inventory: InventoryState;
   injuries: InjuryState;
+}
+
+export interface InjuryMedicineAvailability {
+  count: number;
+  enabled: boolean;
+  reason: InjuryMedicineResult['reason'] | null;
 }
 
 const MEDICINE_ITEMS: Record<InjuryMedicineTier, string> = {
@@ -38,9 +47,39 @@ export function createNewGame(): UiGameState {
   };
 }
 
+export function getRecoveryView(injuries: InjuryState, now: number): RecoveryView {
+  if (isUnconscious(injuries, now)) {
+    return {kind:'unconscious',remainingMs:Math.max(0,(injuries.unconsciousUntil ?? now)-now)};
+  }
+  if (isForcedRest(injuries, now)) {
+    return {kind:'forced-rest',remainingMs:Math.max(0,(injuries.restUntil ?? now)-now)};
+  }
+  return {kind:'ready',remainingMs:0};
+}
+
 export function canPerformAction(injuries: InjuryState, action: RecoveryActionKind, now: number): boolean {
   if (action === 'inventory') return true;
   return !isRecoveryLocked(injuries, now);
+}
+
+export function getInjuryMedicineAvailability(
+  inventory: InventoryState,
+  injuries: InjuryState,
+  tier: InjuryMedicineTier,
+  now: number,
+  inCombat: boolean
+): InjuryMedicineAvailability {
+  const itemId = MEDICINE_ITEMS[tier];
+  const count = inventory.stacks.find(entry => entry.itemId === itemId)?.quantity ?? 0;
+  let reason: InjuryMedicineAvailability['reason'] = null;
+
+  if (inCombat) reason = 'combat';
+  else if (isUnconscious(injuries, now)) reason = 'unconscious';
+  else if (isForcedRest(injuries, now) && tier !== 'strong') reason = 'forced-rest';
+  else if (totalInjurySeverity(injuries) === 0) reason = 'no-injuries';
+  else if (count <= 0) reason = 'missing-item';
+
+  return {count,enabled:reason === null,reason};
 }
 
 export function useInjuryMedicine(
@@ -51,15 +90,12 @@ export function useInjuryMedicine(
   inCombat: boolean,
   rng: SeededRng
 ): InjuryMedicineResult {
-  if (inCombat) return {ok:false,reason:'combat',inventory,injuries};
-  if (isUnconscious(injuries, now)) return {ok:false,reason:'unconscious',inventory,injuries};
-  if (isForcedRest(injuries, now) && tier !== 'strong') return {ok:false,reason:'forced-rest',inventory,injuries};
-  if (totalInjurySeverity(injuries) === 0) return {ok:false,reason:'no-injuries',inventory,injuries};
+  const availability = getInjuryMedicineAvailability(inventory, injuries, tier, now, inCombat);
+  if (!availability.enabled) {
+    return {ok:false,reason:availability.reason ?? undefined,inventory,injuries};
+  }
 
   const itemId = MEDICINE_ITEMS[tier];
-  const stack = inventory.stacks.find(entry => entry.itemId === itemId && entry.quantity > 0);
-  if (!stack) return {ok:false,reason:'missing-item',inventory,injuries};
-
   let healed = tier === 'strong'
     ? clearAllInjuries(injuries)
     : healInjuries(injuries, tier === 'weak' ? 2 : 4, rng);

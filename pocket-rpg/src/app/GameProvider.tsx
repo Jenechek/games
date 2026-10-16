@@ -310,7 +310,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
       const now=Date.now();
       let n:RuntimeState={...s,...tickGame(s,now)};
       if(!n.combat){
-        n={...n,summons:reconstructSummonRecovery(n.summons,summonDefinitions,now)};
+        const effectiveSummons=effectiveSummonDefinitions(
+          n.classState,
+          playerClasses,
+          summonDefinitions
+        );
+        n={...n,summons:reconstructSummonRecovery(n.summons,effectiveSummons,now)};
       }
 
       while(n.farmingWork && now>=n.farmingWork.nextAt){
@@ -457,10 +462,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
       if(r.state.enemy.hp<=0){
         const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
         const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-        return awardCharacterXp(
+        return awardCombatProgression(
           {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
-          combatCharacterXp(enemyLevel),
-          'combat'
+          enemyLevel,
+          (s.combat.summons?.length??0)>0
         );
       }
       return{...afterRound,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
@@ -482,7 +487,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canPerformAction(s.injuries,'combat',now))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
         const id=locations[s.world.locationId]?.enemies[0];
         if(!id)return s;
-        const summons=reconstructSummonRecovery(s.summons,summonDefinitions,now);
+        const effectiveSummons=effectiveSummonDefinitions(
+          s.classState,
+          playerClasses,
+          summonDefinitions
+        );
+        const summons=reconstructSummonRecovery(s.summons,effectiveSummons,now);
         const prepared={...s,summons};
         return{
           ...prepared,
@@ -513,10 +523,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(r.state.enemy.hp<=0){
           const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
           const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-          return awardCharacterXp(
+          return awardCombatProgression(
             {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
-            combatCharacterXp(enemyLevel),
-            'combat'
+            enemyLevel,
+            (s.combat.summons?.length??0)>0
           );
         }
         return{...afterRound,combatItemUsedRound:null};
@@ -1119,7 +1129,70 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return{...s,log:[...s.log,'Такое перераспределение сейчас недоступно.']};
         }
       });
+    ,
+    chooseClass(id){
+      setState(s=>{
+        if(s.combat)return s;
+        if(s.classState.classId!==null){
+          return{...s,log:[...s.log,'Класс уже выбран.']};
+        }
+        if(s.summons.active.length>0){
+          return{...s,log:[...s.log,'Нельзя выбрать класс при существующих непривязанных призывах.']};
+        }
+        try{
+          const classState=choosePlayerClass(s.classState,id);
+          return{
+            ...s,
+            classState,
+            log:[...s.log,`Выбран класс: ${playerClasses[id].label}.`]
+          };
+        }catch{
+          return s;
+        }
+      });
+    },
+    summonClassCreature(id){
+      setState(s=>{
+        const now=Date.now();
+        const classId=s.classState.classId;
+        if(!classId||s.combat||!canPerformAction(s.injuries,'class',now))return s;
+        const classDef=playerClasses[classId];
+        if(!canUseClassSummon(s.classState,classDef,id)){
+          return{...s,log:[...s.log,'Этот призыв ещё не открыт классовым навыком.']};
+        }
+        const effectiveSummons=effectiveSummonDefinitions(
+          s.classState,
+          playerClasses,
+          summonDefinitions
+        );
+        const definition=effectiveSummons[id];
+        if(!definition)return s;
+        try{
+          const recovered=reconstructSummonRecovery(
+            s.summons,
+            effectiveSummons,
+            now
+          );
+          const summons=summonCreature({
+            roster:recovered,
+            definition,
+            limit:classSummonLimit(s.classState,playerClasses),
+            now
+          });
+          return{
+            ...s,
+            summons,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Призвано существо: ${definition.label}.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Призыв сейчас недоступен.']};
+        }
+      });
     }
+  }
   }),[]);
 
   return <Ctx.Provider value={{state,commands}}>{children}</Ctx.Provider>;

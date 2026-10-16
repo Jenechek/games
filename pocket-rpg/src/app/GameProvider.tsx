@@ -44,7 +44,8 @@ import type {
   GatheringSession
 } from '../game-core/peaceful/gathering/types';
 import { gatheringResourceDefs } from '../content/gathering';
-import { applyBuyPressure, applySellProgress } from '../game-core/economy/merchant';
+import { cropDefs } from '../content/farming';
+import { applyBuyPressure, applySellProgress, tradingXpForSale } from '../game-core/economy/merchant';
 import { IndexedDbSaveStore } from '../storage/indexed-db';
 import { reconstructState } from '../game-core/game-state';
 import { applyDefeatConsequences } from '../game-core/injuries/defeat';
@@ -81,6 +82,11 @@ import {
   UNIVERSITY_UNLOCK_LEVEL,
   startRetraining
 } from '../game-core/university/retraining';
+import {
+  addCharacterXp,
+  combatCharacterXp,
+  type CharacterXpSource
+} from '../game-core/progression/character';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -150,6 +156,30 @@ function initial():RuntimeState {
   };
 }
 
+function awardCharacterXp(
+  state:RuntimeState,
+  amount:number,
+  source:CharacterXpSource
+):RuntimeState{
+  if(!(amount>0))return state;
+  const result=addCharacterXp({
+    level:state.level,
+    xp:state.xp,
+    attributes:state.attributes,
+    attributeXp:state.attributeXp
+  },amount,source);
+  return {
+    ...state,
+    level:result.state.level,
+    xp:result.state.xp,
+    attributes:result.state.attributes,
+    attributeXp:result.state.attributeXp,
+    log:result.levelsGained>0
+      ?[...state.log,`Новый уровень: ${result.state.level}. Характеристики повышены автоматически.`]
+      :state.log
+  };
+}
+
 function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
@@ -196,6 +226,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           xp:restored.character.xp,
           gold:restored.character.gold,
           attributes:restored.character.attributes,
+          attributeXp:restored.character.attributeXp,
           world:restored.world,
           inventory:restored.inventory,
           injuries:restored.injuries,
@@ -216,7 +247,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     if(!hydrated)return;
     const id=setTimeout(()=>{
       saveStore.current.save({
-        character:{level:state.level,xp:state.xp,gold:state.gold,attributes:state.attributes},
+        character:{level:state.level,xp:state.xp,gold:state.gold,attributes:state.attributes,attributeXp:state.attributeXp},
         world:state.world,
         inventory:state.inventory,
         injuries:state.injuries,
@@ -229,7 +260,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{

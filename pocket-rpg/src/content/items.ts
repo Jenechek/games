@@ -7,5 +7,8 @@ export const itemDefs:Record<string,ItemDefinition>={
   'heavy-armor':{id:'heavy-armor',label:'Тяжёлая броня',weight:12,slot:'body',rarity:'common',stats:{mitigation:0.18}},
   'travel-bag':{id:'travel-bag',label:'Походная сумка',weight:1,slot:'bag',rarity:'common',stats:{capacity:20}},
   'healing-potion':{id:'healing-potion',label:'Лечебное зелье',weight:0.3,rarity:'common',stats:{healing:25}},
+  'weak-injury-medicine':{id:'weak-injury-medicine',label:'Слабое средство от травм',weight:0.2,rarity:'common'},
+  'medium-injury-medicine':{id:'medium-injury-medicine',label:'Среднее средство от травм',weight:0.3,rarity:'quality'},
+  'strong-injury-medicine':{id:'strong-injury-medicine',label:'Сильное средство от травм',weight:0.4,rarity:'rare'},
   'basic-fishing-rod':{id:'basic-fishing-rod',label:'Простая удочка',weight:1.2,rarity:'common',requirements:{skills:{fishing:0}},stats:{fishingSpeed:1,rareChance:0}}
 };

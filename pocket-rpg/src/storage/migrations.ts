@@ -471,10 +471,10 @@ export function migrateSave(value:unknown):SaveEnvelopeV10|null{
     return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4))))))};
   }
   if(value.schemaVersion===4&&looksLikeLegacyStateV4(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(value.state)))))};
+    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(value.state))))))};
   }
   if(value.schemaVersion===5&&looksLikeLegacyStateV5(value.state)){
-    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(value.state))))};
+    return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(withEconomy(value.state)))))};
   }
   if(value.schemaVersion===6&&looksLikeLegacyStateV6(value.state)){
     return {schemaVersion:10,savedAt:value.savedAt,state:withSummons(withCharacterProfile(withUniversity(withDiplomacy(value.state))))};

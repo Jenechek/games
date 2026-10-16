@@ -12,6 +12,7 @@ import {
   type ItemInstance
 } from '../game-core/items/inventory.js';
 import { itemDefs } from '../content/items.js';
+import { craftRecipes } from '../content/crafting.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
 import type { FarmingState, FarmingWork, HarvestResult } from '../game-core/peaceful/farming/types.js';
 import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gathering.js';
@@ -125,6 +126,19 @@ export function canUseCraftingAction(
   now:number
 ):boolean{
   return !inCombat&&canPerformAction(injuries,'crafting',now);
+}
+
+export function recipeScrollEntries(
+  inventory:InventoryState
+):Array<{itemId:string;recipeId:string;quantity:number}>{
+  return inventory.stacks
+    .filter(stack=>stack.itemId.startsWith('recipe-')&&stack.quantity>0)
+    .map(stack=>({
+      itemId:stack.itemId,
+      recipeId:stack.itemId.slice('recipe-'.length),
+      quantity:stack.quantity
+    }))
+    .filter(entry=>Boolean(craftRecipes[entry.recipeId]));
 }
 
 export function replaceInventoryInstance(

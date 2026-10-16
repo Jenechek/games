@@ -88,7 +88,9 @@ function propertyLimit(instance:ItemInstance):number{
 }
 function looksLikeItemInstance(value:unknown):value is ItemInstance{
   if(!isObject(value))return false;
-  if(typeof value.instanceId!=='string'||!/^crafted-\d+$/.test(value.instanceId))return false;
+  if(typeof value.instanceId!=='string')return false;
+  const instanceMatch=/^crafted-(\d+)$/.exec(value.instanceId);
+  if(!instanceMatch||Number(instanceMatch[1])<1)return false;
   if(typeof value.baseItemId!=='string'||!itemDefs[value.baseItemId]?.slot)return false;
   if(!['common','quality','rare','epic'].includes(String(value.rarity)))return false;
   if(!Number.isInteger(value.upgradeLevel)||(value.upgradeLevel as number)<0||(value.upgradeLevel as number)>5)return false;
@@ -96,7 +98,7 @@ function looksLikeItemInstance(value:unknown):value is ItemInstance{
   if(new Set(value.properties).size!==value.properties.length)return false;
   const allowed=new Set(eligiblePropertyIds(value.baseItemId));
   if(!value.properties.every(id=>allowed.has(id)))return false;
-  return value.properties.length<=propertyLimit(value as unknown as ItemInstance);
+  return value.properties.length===propertyLimit(value as unknown as ItemInstance);
 }
 function looksLikeV5Inventory(value:unknown):value is InventoryState{
   if(!isObject(value)||!looksLikeStacks(value.stacks)||!Array.isArray(value.instances))return false;

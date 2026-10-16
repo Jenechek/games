@@ -7,8 +7,49 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
 function isTimestamp(value: unknown): value is number | null {
-  return value === null || (typeof value === 'number' && Number.isFinite(value));
+  return value === null || isFiniteNumber(value);
+}
+
+function looksLikeCharacter(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  return Number.isInteger(value.level) && (value.level as number) >= 1
+    && isFiniteNumber(value.xp) && value.xp >= 0
+    && isFiniteNumber(value.gold) && value.gold >= 0;
+}
+
+function looksLikeTravel(value: unknown): boolean {
+  if (value === null) return true;
+  if (!isObject(value)) return false;
+  return typeof value.fromId === 'string'
+    && typeof value.destinationId === 'string'
+    && isFiniteNumber(value.startedAt)
+    && isFiniteNumber(value.arrivesAt)
+    && value.arrivesAt >= value.startedAt;
+}
+
+function looksLikeWorld(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  return typeof value.locationId === 'string'
+    && value.locationId.length > 0
+    && Number.isInteger(value.arrivalCount)
+    && (value.arrivalCount as number) >= 0
+    && looksLikeTravel(value.travel);
+}
+
+function looksLikeInventory(value: unknown): boolean {
+  if (!isObject(value) || !Array.isArray(value.stacks)) return false;
+  return value.stacks.every(stack =>
+    isObject(stack)
+    && typeof stack.itemId === 'string'
+    && stack.itemId.length > 0
+    && Number.isInteger(stack.quantity)
+    && (stack.quantity as number) > 0
+  );
 }
 
 function looksLikeInjuryState(value: unknown): value is InjuryState {
@@ -24,17 +65,21 @@ function looksLikeInjuryState(value: unknown): value is InjuryState {
 
 function looksLikeLegacyState(value: unknown): value is LegacyGameStateV1 {
   if (!isObject(value)) return false;
-  return isObject(value.character) && isObject(value.world) && isObject(value.inventory);
+  return looksLikeCharacter(value.character)
+    && looksLikeWorld(value.world)
+    && looksLikeInventory(value.inventory);
 }
 
 function looksLikeGameState(value: unknown): value is GameState {
   if (!isObject(value)) return false;
-  if (!isObject(value.character) || !isObject(value.world) || !isObject(value.inventory)) return false;
-  return looksLikeInjuryState(value.injuries);
+  return looksLikeCharacter(value.character)
+    && looksLikeWorld(value.world)
+    && looksLikeInventory(value.inventory)
+    && looksLikeInjuryState(value.injuries);
 }
 
 export function migrateSave(value: unknown): SaveEnvelopeV2 | null {
-  if (!isObject(value) || typeof value.savedAt !== 'number' || !Number.isFinite(value.savedAt)) return null;
+  if (!isObject(value) || !isFiniteNumber(value.savedAt)) return null;
 
   if (value.schemaVersion === 1 && looksLikeLegacyState(value.state)) {
     return {

@@ -1,3 +1,4 @@
+import type { AttributeId } from './types.js';
 import type { InventoryState,LegacyInventoryState } from './items/inventory.js';
 import type { WorldState } from './world/travel.js';
 import { advanceWorldTime } from './world/travel.js';
@@ -8,15 +9,21 @@ import type { GatheringState } from './peaceful/gathering/types.js';
 import type { CraftingState } from './crafting/types.js';
 import type { EconomyState } from './economy/types.js';
 import type { DiplomacyState } from './diplomacy/types.js';
+import type { UniversityState } from './university/types.js';
+import { resolveRetraining } from './university/retraining.js';
 
-export interface CharacterPersistentState {
+export interface LegacyCharacterPersistentState {
   level:number;
   xp:number;
   gold:number;
 }
 
+export interface CharacterPersistentState extends LegacyCharacterPersistentState {
+  attributes:Record<AttributeId,number>;
+}
+
 export interface LegacyGameStateV1 {
-  character:CharacterPersistentState;
+  character:LegacyCharacterPersistentState;
   world:WorldState;
   inventory:LegacyInventoryState;
 }
@@ -42,13 +49,25 @@ export interface LegacyGameStateV6 extends LegacyGameStateV5 {
   economy:EconomyState;
 }
 
-export interface GameState extends LegacyGameStateV6 {
+export interface LegacyGameStateV7 extends LegacyGameStateV6 {
   diplomacy:DiplomacyState;
 }
 
+export interface GameState extends LegacyGameStateV7 {
+  character:CharacterPersistentState;
+  university:UniversityState;
+}
+
 export function reconstructState(state:GameState,now:number):GameState{
+  const retraining=resolveRetraining({
+    state:state.university,
+    attributes:state.character.attributes,
+    now
+  });
   return {
     ...state,
+    character:{...state.character,attributes:retraining.attributes},
+    university:retraining.state,
     world:advanceWorldTime(state.world,now),
     injuries:reconstructRecovery(state.injuries,now)
   };

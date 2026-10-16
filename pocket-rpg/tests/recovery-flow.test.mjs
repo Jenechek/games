@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SeededRng } from '../dist/game-core/rng.js';
 import { cleanInjuryState } from '../dist/game-core/injuries/injuries.js';
-import { canPerformAction, useInjuryMedicine } from '../dist/app/game-controller.js';
+import { canPerformAction, useInjuryMedicine, getRecoveryView, getInjuryMedicineAvailability } from '../dist/app/game-controller.js';
 
 test('recovery locks travel combat fishing and merchant but not inventory', () => {
   const injuries = cleanInjuryState();
@@ -72,4 +72,46 @@ test('weak and medium are rejected during forced rest, strong heals all and canc
   assert.equal(strong.injuries.restUntil, null);
   assert.equal(Object.values(strong.injuries.severity).reduce((a,b)=>a+b,0), 0);
   assert.equal(strong.inventory.stacks.find(x=>x.itemId==='strong-injury-medicine'), undefined);
+});
+
+
+test('recovery view reports unconscious, forced rest, and ready states with remaining time', () => {
+  const injuries = cleanInjuryState();
+  injuries.unconsciousUntil = 20_000;
+  injuries.restUntil = 80_000;
+  assert.deepEqual(getRecoveryView(injuries, 10_000), {kind:'unconscious',remainingMs:10_000});
+  assert.deepEqual(getRecoveryView(injuries, 30_000), {kind:'forced-rest',remainingMs:50_000});
+  assert.deepEqual(getRecoveryView(injuries, 90_000), {kind:'ready',remainingMs:0});
+});
+
+test('medicine availability gives count and disabled reason without duplicating rules in React', () => {
+  const injuries = cleanInjuryState();
+  injuries.severity.head = 1;
+  const inventory = {stacks:[
+    {itemId:'weak-injury-medicine',quantity:2},
+    {itemId:'strong-injury-medicine',quantity:1}
+  ]};
+
+  injuries.unconsciousUntil = 20_000;
+  assert.deepEqual(
+    getInjuryMedicineAvailability(inventory, injuries, 'weak', 10_000, false),
+    {count:2,enabled:false,reason:'unconscious'}
+  );
+
+  injuries.unconsciousUntil = null;
+  injuries.restUntil = 50_000;
+  assert.deepEqual(
+    getInjuryMedicineAvailability(inventory, injuries, 'weak', 10_000, false),
+    {count:2,enabled:false,reason:'forced-rest'}
+  );
+  assert.deepEqual(
+    getInjuryMedicineAvailability(inventory, injuries, 'strong', 10_000, false),
+    {count:1,enabled:true,reason:null}
+  );
+
+  injuries.restUntil = null;
+  assert.deepEqual(
+    getInjuryMedicineAvailability(inventory, injuries, 'medium', 10_000, false),
+    {count:0,enabled:false,reason:'missing-item'}
+  );
 });

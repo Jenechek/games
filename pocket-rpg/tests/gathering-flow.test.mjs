@@ -4,6 +4,7 @@ import { cleanInjuryState } from '../dist/game-core/injuries/injuries.js';
 import {
   currentLoadRatio,
   canStartGatheringAction,
+  gatheringStartReason,
   shouldInterruptGathering,
   applyGatheringResults
 } from '../dist/app/game-controller.js';
@@ -47,4 +48,15 @@ test('gathering results merge ordinary and rare stacks into inventory',()=>{
     {itemId:'wild-herb',quantity:5},
     {itemId:'wild-herb-rare',quantity:1}
   ]);
+});
+
+
+test('gathering start reason exposes one controller-owned UI explanation',()=>{
+  const injuries=cleanInjuryState();
+  assert.equal(gatheringStartReason(injuries,false,false,1,1000),null);
+  assert.equal(gatheringStartReason(injuries,true,false,1,1000),'combat');
+  assert.equal(gatheringStartReason(injuries,false,true,1,1000),'farming');
+  assert.equal(gatheringStartReason(injuries,false,false,1.2,1000),'overload');
+  injuries.unconsciousUntil=10_000;
+  assert.equal(gatheringStartReason(injuries,false,false,1,1000),'recovery');
 });

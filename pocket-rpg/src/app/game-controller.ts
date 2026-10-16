@@ -5,12 +5,17 @@ import type { InjuryState } from '../game-core/injuries/types.js';
 import { cleanInjuryState, clearAllInjuries, healInjuries, injuryPenaltySummary, totalInjurySeverity } from '../game-core/injuries/injuries.js';
 import { isForcedRest, isRecoveryLocked, isUnconscious, reconstructRecovery } from '../game-core/injuries/defeat.js';
 import {
+  addInventoryStack,
   carryingCapacity,
   inventoryMass,
   overloadRatio,
+  removeInventoryStack,
   type InventoryState
 } from '../game-core/items/inventory.js';
 import { itemDefs } from '../content/items.js';
+import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
+import type { CraftingState } from '../game-core/crafting/types.js';
+import { starterRecipeIds } from '../content/crafting.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
 import type { FarmingState, FarmingWork, HarvestResult } from '../game-core/peaceful/farming/types.js';
 import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gathering.js';
@@ -26,9 +31,10 @@ export interface UiGameState {
   injuries: InjuryState;
   farming: FarmingState;
   gathering: GatheringState;
+  crafting: CraftingState;
 }
 
-export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'merchant' | 'inventory';
+export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'inventory';
 export type InterruptingActionKind = 'travel' | 'combat' | 'merchant' | 'inventory';
 export type AgricultureKind = 'safe' | 'neutral';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
@@ -62,7 +68,8 @@ export function createNewGame(): UiGameState {
     gold:100,
     injuries:cleanInjuryState(),
     farming:createDefaultFarmingState(),
-    gathering:createDefaultGatheringState()
+    gathering:createDefaultGatheringState(),
+    crafting:createDefaultCraftingState(starterRecipeIds)
   };
 }
 
@@ -158,28 +165,24 @@ export function applyGatheringResults(
   inventory:InventoryState,
   results:GatheringResult[]
 ):InventoryState{
-  if(results.length===0)return inventory;
-  const stacks=inventory.stacks.map(stack=>({...stack}));
+  let next=inventory;
   for(const result of results){
-    const existing=stacks.find(stack=>stack.itemId===result.itemId);
-    if(existing)existing.quantity+=result.quantity;
-    else stacks.push({itemId:result.itemId,quantity:result.quantity});
+    const itemClass=itemDefs[result.itemId]?.materialClass??1;
+    next=addInventoryStack(next,result.itemId,result.quantity,itemClass);
   }
-  return {stacks};
+  return next;
 }
 
 export function applyHarvestResults(
   inventory: InventoryState,
   harvests: HarvestResult[]
 ): InventoryState {
-  if (harvests.length === 0) return inventory;
-  const stacks = inventory.stacks.map(stack => ({...stack}));
+  let next=inventory;
   for (const result of harvests) {
-    const existing = stacks.find(stack => stack.itemId === result.itemId);
-    if (existing) existing.quantity += result.quantity;
-    else stacks.push({itemId:result.itemId,quantity:result.quantity});
+    const itemClass=itemDefs[result.itemId]?.materialClass??1;
+    next=addInventoryStack(next,result.itemId,result.quantity,itemClass);
   }
-  return {stacks};
+  return next;
 }
 
 export function rollFarmingInterruption(
@@ -242,11 +245,9 @@ export function useInjuryMedicine(
     healed = {...healed, restUntil:null};
   }
 
-  const stacks = inventory.stacks
-    .map(entry => entry.itemId === itemId ? {...entry,quantity:entry.quantity - 1} : {...entry})
-    .filter(entry => entry.quantity > 0);
+  const nextInventory=removeInventoryStack(inventory,itemId,1);
 
-  return {ok:true,inventory:{stacks},injuries:healed};
+  return {ok:true,inventory:nextInventory,injuries:healed};
 }
 
 export function travelCommand(

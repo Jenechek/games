@@ -8,12 +8,16 @@ for(const crop of Object.values(cropDefs)){
   cropItemDefs[crop.id]={
     id:crop.id,
     label:crop.label,
-    weight:crop.unitWeight
+    weight:crop.unitWeight,
+    materialType:crop.id,
+    materialClass:1
   };
   cropItemDefs[`${crop.id}-rare`]={
     id:`${crop.id}-rare`,
     label:`${crop.label} (редкий)`,
-    weight:crop.unitWeight
+    weight:crop.unitWeight,
+    materialType:crop.id,
+    materialClass:2
   };
 }
 
@@ -22,12 +26,16 @@ for(const resource of Object.values(gatheringResourceDefs)){
   gatheringItemDefs[resource.id]={
     id:resource.id,
     label:resource.label,
-    weight:resource.unitWeight
+    weight:resource.unitWeight,
+    materialType:resource.id,
+    materialClass:1
   };
   gatheringItemDefs[`${resource.id}-rare`]={
     id:`${resource.id}-rare`,
     label:`${resource.label} (редкий)`,
-    weight:resource.unitWeight
+    weight:resource.unitWeight,
+    materialType:resource.id,
+    materialClass:2
   };
 }
 
@@ -47,7 +55,11 @@ export const itemDefs:Record<string,ItemDefinition>={
   'light-armor':{id:'light-armor',label:'Лёгкая броня',weight:5,slot:'body',rarity:'common',stats:{mitigation:0.05,evasion:0.08}},
   'heavy-armor':{id:'heavy-armor',label:'Тяжёлая броня',weight:12,slot:'body',rarity:'common',stats:{mitigation:0.18}},
   'travel-bag':{id:'travel-bag',label:'Походная сумка',weight:1,slot:'bag',rarity:'common',stats:{capacity:20}},
-  'healing-potion':{id:'healing-potion',label:'Лечебное зелье',weight:0.3,rarity:'common',stats:{healing:25}},
+  'healing-potion':{id:'healing-potion',label:'Лечебное зелье',weight:0.3,rarity:'common',stats:{healing:25},combatUse:{kind:'heal',amount:25,toxicity:70}},
+  'focus-tonic':{id:'focus-tonic',label:'Настой сосредоточения',weight:0.25,rarity:'common',combatUse:{kind:'effect',effectId:'focus',magnitude:0.08,durationRounds:3,toxicity:60}},
+  'mana-draught':{id:'mana-draught',label:'Настой маны',weight:0.25,rarity:'common',combatUse:{kind:'mana',amount:30,toxicity:45}},
+  'vigor-draught':{id:'vigor-draught',label:'Настой выносливости',weight:0.25,rarity:'common',combatUse:{kind:'stamina',amount:30,toxicity:45}},
+  'battle-tonic':{id:'battle-tonic',label:'Боевой тоник',weight:0.3,rarity:'quality',combatUse:{kind:'effect',effectId:'might',magnitude:0.10,durationRounds:3,toxicity:60}},
   'weak-injury-medicine':{id:'weak-injury-medicine',label:'Слабое средство от травм',weight:0.2,rarity:'common'},
   'medium-injury-medicine':{id:'medium-injury-medicine',label:'Среднее средство от травм',weight:0.3,rarity:'quality'},
   'strong-injury-medicine':{id:'strong-injury-medicine',label:'Сильное средство от травм',weight:0.4,rarity:'rare'},

@@ -75,10 +75,11 @@ test('neutral farming ambush enemies are weaker than normal regional enemies', (
 });
 
 
-test('farming action guard rejects combat even when injury recovery is clear', () => {
+test('farming action guard rejects combat recovery and 120 percent overload', () => {
   const injuries=cleanInjuryState();
-  assert.equal(canStartFarmingAction(injuries,false,1_000),true);
-  assert.equal(canStartFarmingAction(injuries,true,1_000),false);
+  assert.equal(canStartFarmingAction(injuries,false,1.199,1_000),true);
+  assert.equal(canStartFarmingAction(injuries,false,1.2,1_000),false);
+  assert.equal(canStartFarmingAction(injuries,true,1,1_000),false);
   injuries.unconsciousUntil=10_000;
-  assert.equal(canStartFarmingAction(injuries,false,1_000),false);
+  assert.equal(canStartFarmingAction(injuries,false,1,1_000),false);
 });

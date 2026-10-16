@@ -192,3 +192,19 @@ test('ordinary and rare gathering items use the same authored unit mass', () => 
   assert.equal(itemDefs['plant-fiber-rare'].weight,0.10);
   assert.match(itemDefs['plant-fiber-rare'].label,/редк/i);
 });
+
+test('overdue gathering can stop between cycles when a runtime limit is reached',()=>{
+  const state=createDefaultGatheringState();
+  const session=startGathering(state,'fiber',0,'tillanium-fields',10,10,1);
+  const result=advanceGathering(
+    state,
+    session,
+    15000,
+    {next:()=>0.99,chance:()=>false},
+    'tillanium-fields',
+    10,
+    0,
+    results=>results.length<2
+  );
+  assert.equal(result.results.length,2);
+});

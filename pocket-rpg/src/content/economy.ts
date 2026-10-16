@@ -12,6 +12,7 @@ export const basePrices:Record<string,number>={
   'medium-injury-medicine':28,
   'strong-injury-medicine':60,
   'iron-short-sword':45,
+  'rare-short-sword':120,
   'wooden-shield':32,
   'light-armor':60,
   'heavy-armor':90,

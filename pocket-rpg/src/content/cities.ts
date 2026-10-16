@@ -1,11 +1,12 @@
 import type { WorkshopKind } from '../game-core/crafting/types.js';
+import type { FactionId } from '../game-core/diplomacy/types.js';
 
 export interface CityDefinition {
   id:string;
   label:string;
   merchantId:string;
   workshops:WorkshopKind[];
-  factionId:string|null;
+  factionId:FactionId|null;
   specialization:string;
 }
 

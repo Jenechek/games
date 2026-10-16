@@ -817,7 +817,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           log:[...s.log,`Использовано: ${itemDefs[itemId].label}.`]
         };
       });
-    ,
+    },
     factionAudience(){
       setState(s=>{
         const now=Date.now();
@@ -937,7 +937,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
         }
       });
     }
-  }
   }),[]);
 
   return <Ctx.Provider value={{state,commands}}>{children}</Ctx.Provider>;

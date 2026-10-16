@@ -70,7 +70,7 @@ import { applyCombatConsumable } from '../game-core/alchemy/consumables';
 import {
   attemptAudience,
   attemptMediation,
-  completeFactionRequest,
+  completeFactionRequest as resolveFactionRequest,
   currentFactionRequest,
   honoredFactionItemUnlocked
 } from '../game-core/diplomacy/diplomacy';
@@ -906,7 +906,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return{...s,log:[...s.log,'Не хватает предметов для фракционного поручения.']};
         }
         try{
-          const result=completeFactionRequest({
+          const result=resolveFactionRequest({
             state:s.diplomacy,
             request,
             relation,

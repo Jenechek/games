@@ -268,22 +268,33 @@ export function GameProvider({children}:{children:React.ReactNode}){
       let n:RuntimeState={...s,...tickGame(s,now)};
 
       while(n.farmingWork && now>=n.farmingWork.nextAt){
-        const agriculture=locations[n.farmingWork.locationId]?.agriculture;
-        const stepAt=n.farmingWork.nextAt;
+        const workBefore=n.farmingWork;
+        const agriculture=locations[workBefore.locationId]?.agriculture;
+        const stepAt=workBefore.nextAt;
         const step=advanceFarmingWork(
           n.farming,
-          n.farmingWork,
+          workBefore,
           stepAt,
           rng.current,
           n.attributes.luck
         );
         const inventory=applyHarvestResults(n.inventory,step.harvests);
+        let farmingCharacterXp=0;
+        if(workBefore.type==='plant'){
+          farmingCharacterXp=(cropDefs[workBefore.cropId]?.harvestXp??0)*0.5*step.completedCells;
+        }else if(workBefore.type==='harvest'){
+          farmingCharacterXp=step.harvests.reduce(
+            (sum,result)=>sum+(cropDefs[result.cropId]?.harvestXp??0)*(result.rare?2:1),
+            0
+          );
+        }
         n={
           ...n,
           farming:step.state,
           farmingWork:step.work,
           inventory
         };
+        n=awardCharacterXp(n,farmingCharacterXp,'farming');
 
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
           n={
@@ -336,12 +347,18 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory,
           log:resultLog.length?[...n.log,...resultLog]:n.log
         };
+        const gatheringCharacterXp=gathered.results.reduce(
+          (sum,result)=>sum+(gatheringResourceDefs[result.resourceId]?.xp??0)*(result.rare?2:1),
+          0
+        );
+        n=awardCharacterXp(n,gatheringCharacterXp,'gathering');
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
           n={...n,gatheringSession:null,log:[...n.log,'Сбор остановлен: перегруз достиг 120%.']};
         }
       }
 
       if(n.fishing && !n.farmingWork && !n.gatheringSession && canPerformAction(n.injuries,'fishing',now)){
+        const fishingXpBefore=n.fishingXp;
         const f=advanceFishing(
           n,
           now,
@@ -351,6 +368,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory=>currentLoadRatio(inventory,n.attributes)<1.2
         );
         n={...n,...f};
+        n=awardCharacterXp(n,Math.max(0,f.fishingXp-fishingXpBefore),'fishing');
         if(n.fishing===null){
           n={...n,log:[...n.log,'Рыбалка остановлена: перегруз достиг 120%.']};
         }

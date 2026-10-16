@@ -16,6 +16,8 @@ import type { SummonRosterState } from './summons/types.js';
 import { reconstructSummonRecovery } from './summons/summons.js';
 import { summonDefinitions } from '../content/summons.js';
 import type { ClassState } from './classes/types.js';
+import { effectiveSummonDefinitions } from './classes/classes.js';
+import { playerClasses } from '../content/classes.js';
 
 export interface LegacyCharacterPersistentState {
   level:number;
@@ -65,11 +67,12 @@ export function reconstructState(state:GameState,now:number):GameState{
     attributes:state.character.attributes,
     now
   });
+  const effectiveSummons=effectiveSummonDefinitions(state.classState,playerClasses,summonDefinitions);
   return {
     ...state,
     character:{...state.character,attributes:retraining.attributes},
     university:retraining.state,
-    summons:reconstructSummonRecovery(state.summons,summonDefinitions,now),
+    summons:reconstructSummonRecovery(state.summons,effectiveSummons,now),
     world:advanceWorldTime(state.world,now),
     injuries:reconstructRecovery(state.injuries,now)
   };

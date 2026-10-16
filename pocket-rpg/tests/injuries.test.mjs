@@ -91,3 +91,61 @@ test('penalty summary reflects approved per-zone penalties', () => {
   assert.equal(p.physicalAttackMultiplier, 0.95);
   assert.equal(p.travelTimeMultiplier, 1.15);
 });
+
+
+import {
+  applyDefeatConsequences,
+  reconstructRecovery,
+  isUnconscious,
+  isForcedRest,
+  isRecoveryLocked
+} from '../dist/game-core/injuries/defeat.js';
+
+test('ordinary defeat applies one injury and exactly 15 seconds unconscious', () => {
+  const before = cleanInjuryState();
+  const after = applyDefeatConsequences(before, 'ordinary', 10_000, new SeededRng(1));
+  const total = Object.values(after.severity).reduce((sum, value) => sum + value, 0);
+  assert.equal(total, 1);
+  assert.equal(after.unconsciousUntil, 25_000);
+});
+
+test('boss and miniboss defeats apply exactly three injury rolls', () => {
+  for (const kind of ['boss', 'miniboss']) {
+    const after = applyDefeatConsequences(cleanInjuryState(), kind, 0, new SeededRng(5));
+    const total = Object.values(after.severity).reduce((sum, value) => sum + value, 0);
+    assert.equal(total, 3);
+  }
+});
+
+test('forced rest starts only with more than five injured zones and uses total severity', () => {
+  const five = cleanInjuryState();
+  five.severity.head = 1;
+  five.severity.torso = 1;
+  five.severity.leftArm = 1;
+  five.severity.rightArm = 1;
+  five.severity.leftLeg = 1;
+  const noRest = applyDefeatConsequences(five, 'ordinary', 1_000, new SeededRng(1));
+  assert.equal(noRest.restUntil, null);
+
+  const six = cleanInjuryState();
+  for (const key of Object.keys(six.severity)) six.severity[key] = 1;
+  const rest = applyDefeatConsequences(six, 'ordinary', 1_000, new SeededRng(1));
+  const total = Object.values(rest.severity).reduce((sum, value) => sum + value, 0);
+  assert.equal(rest.restUntil, 16_000 + total * 30_000);
+});
+
+test('recovery reconstruction clears expired timestamps and lock helpers reflect current time', () => {
+  const state = cleanInjuryState();
+  state.unconsciousUntil = 15_000;
+  state.restUntil = 75_000;
+  assert.equal(isUnconscious(state, 10_000), true);
+  assert.equal(isForcedRest(state, 10_000), false);
+  assert.equal(isRecoveryLocked(state, 10_000), true);
+  const awake = reconstructRecovery(state, 20_000);
+  assert.equal(awake.unconsciousUntil, null);
+  assert.equal(isForcedRest(awake, 20_000), true);
+  assert.equal(isRecoveryLocked(awake, 20_000), true);
+  const recovered = reconstructRecovery(awake, 80_000);
+  assert.equal(recovered.restUntil, null);
+  assert.equal(isRecoveryLocked(recovered, 80_000), false);
+});

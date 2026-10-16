@@ -4,6 +4,7 @@ import { cleanInjuryState } from '../dist/game-core/injuries/injuries.js';
 import {
   currentLoadRatio,
   canStartGatheringAction,
+  canStartFishingAction,
   gatheringStartReason,
   shouldInterruptGathering,
   applyGatheringResults
@@ -59,4 +60,14 @@ test('gathering start reason exposes one controller-owned UI explanation',()=>{
   assert.equal(gatheringStartReason(injuries,false,false,1.2,1000),'overload');
   injuries.unconsciousUntil=10_000;
   assert.equal(gatheringStartReason(injuries,false,false,1,1000),'recovery');
+});
+
+test('fishing action guard blocks combat farming recovery and 120 percent overload',()=>{
+  const injuries=cleanInjuryState();
+  assert.equal(canStartFishingAction(injuries,false,false,1.199,1000),true);
+  assert.equal(canStartFishingAction(injuries,true,false,1,1000),false);
+  assert.equal(canStartFishingAction(injuries,false,true,1,1000),false);
+  assert.equal(canStartFishingAction(injuries,false,false,1.2,1000),false);
+  injuries.unconsciousUntil=10000;
+  assert.equal(canStartFishingAction(injuries,false,false,1,1000),false);
 });

@@ -326,9 +326,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
       if(r.state.player.hp<=0)return applyPlayerDefeat(s);
       if(r.state.enemy.hp<=0){
         const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-        return{...s,combat:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+        return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
       }
-      return{...s,combat:r.state,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
+      return{...s,combat:r.state,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
     }),5000);
     return()=>clearInterval(id);
   },[state.combatMode,state.paused,state.combat,state.style]);
@@ -552,6 +552,135 @@ export function GameProvider({children}:{children:React.ReactNode}){
           injuries:result.injuries,
           market:{...s.market,inventory:result.inventory},
           log:[...s.log,'Травмы обработаны лекарством.']
+        };
+      });
+    },
+    craft(recipeId,quantity,policy='lowest'){
+      setState(s=>{
+        const recipe=craftingRecipes[recipeId];
+        const city=cities[s.world.locationId];
+        if(!recipe||!city?.workshops.includes(recipe.workshop))return s;
+        if(s.combat||!canPerformAction(s.injuries,'crafting',Date.now())){
+          return{...s,log:[...s.log,'Сейчас нельзя заниматься крафтом.']};
+        }
+        try{
+          const result=craftRecipeBatch({
+            state:s.crafting,
+            inventory:s.inventory,
+            recipe,
+            quantity,
+            defs:itemDefs,
+            propertyPools:equipmentPropertyPools,
+            luck:s.attributes.luck,
+            rng:rng.current,
+            policy
+          });
+          const rarityText=result.results
+            .filter(entry=>entry.rarity)
+            .map(entry=>entry.rarity)
+            .join(', ');
+          return{
+            ...s,
+            crafting:result.state,
+            inventory:result.inventory,
+            market:{...s.market,inventory:result.inventory},
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Создано: ${recipe.label} ×${result.results.length}${rarityText?` [${rarityText}]`:''}.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,`Не удалось создать: ${recipe.label}.`]};
+        }
+      });
+    },
+    upgradeEquipment(instanceId){
+      setState(s=>{
+        const instance=(s.inventory.equipment??[]).find(entry=>entry.instanceId===instanceId);
+        if(!instance)return s;
+        const materialType=equipmentUpgradeMaterialType[instance.itemId];
+        const city=cities[s.world.locationId];
+        if(!materialType||!city?.workshops.includes('tailor')||s.combat||!canPerformAction(s.injuries,'crafting',Date.now())){
+          return{...s,log:[...s.log,'Сейчас улучшение недоступно.']};
+        }
+        try{
+          const result=upgradeEquipment({
+            state:s.crafting,
+            inventory:s.inventory,
+            gold:s.gold,
+            instanceId,
+            materialType,
+            defs:itemDefs,
+            propertyPools:equipmentPropertyPools,
+            rng:rng.current
+          });
+          return{
+            ...s,
+            gold:result.gold,
+            inventory:result.inventory,
+            market:{...s.market,gold:result.gold,inventory:result.inventory},
+            log:[...s.log,`Предмет улучшен до +${instance.upgradeLevel+1}.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Не хватает золота или материалов для улучшения.']};
+        }
+      });
+    },
+    rerollEquipment(instanceId,propertyIndex){
+      setState(s=>{
+        const instance=(s.inventory.equipment??[]).find(entry=>entry.instanceId===instanceId);
+        const city=cities[s.world.locationId];
+        if(!instance||!equipmentUpgradeMaterialType[instance.itemId]||!city?.workshops.includes('tailor')||s.combat||!canPerformAction(s.injuries,'crafting',Date.now())){
+          return s;
+        }
+        try{
+          const result=rerollEquipment({
+            inventory:s.inventory,
+            gold:s.gold,
+            instanceId,
+            propertyIndex,
+            defs:itemDefs,
+            propertyPools:equipmentPropertyPools,
+            rng:rng.current
+          });
+          return{
+            ...s,
+            gold:result.gold,
+            inventory:result.inventory,
+            market:{...s.market,gold:result.gold,inventory:result.inventory},
+            log:[...s.log,'Свойство предмета переброшено.']
+          };
+        }catch{
+          return{...s,log:[...s.log,'Переброс свойства недоступен.']};
+        }
+      });
+    },
+    useCombatConsumable(itemId,itemClass){
+      setState(s=>{
+        if(!s.combat)return s;
+        if(s.combatItemUsedRound===s.combat.round){
+          return{...s,log:[...s.log,'В этом раунде предмет уже использован.']};
+        }
+        const definition=itemDefs[itemId]?.combatUse;
+        if(!definition)return s;
+        const stack=s.inventory.stacks.find(entry=>
+          entry.itemId===itemId
+          &&normalizedStackClass(entry)===itemClass
+          &&entry.quantity>0
+        );
+        if(!stack)return s;
+        const applied=applyCombatConsumable(s.combat.player,definition,itemClass);
+        if(!applied.ok){
+          return{...s,log:[...s.log,'Слишком высокая насыщенность зельями.']};
+        }
+        const inventory=removeInventoryStack(s.inventory,itemId,1,itemClass);
+        return{
+          ...s,
+          combat:{...s.combat,player:applied.combatant},
+          combatItemUsedRound:s.combat.round,
+          inventory,
+          market:{...s.market,inventory},
+          log:[...s.log,`Использовано: ${itemDefs[itemId].label}.`]
         };
       });
     }

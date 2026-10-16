@@ -19,6 +19,7 @@ import {
   balancedAttributesForLegacyLevel,
   createDefaultUniversityState
 } from '../game-core/university/retraining.js';
+import { emptyAttributeProfile } from '../game-core/progression/character.js';
 import type { UniversityState } from '../game-core/university/types.js';
 import { createLegacyEquipmentInstance,type EquipmentInstance } from '../game-core/items/equipment.js';
 import type { InventoryState,LegacyInventoryState } from '../game-core/items/inventory.js';
@@ -30,7 +31,8 @@ import type {
   LegacyGameStateV4,
   LegacyGameStateV5,
   LegacyGameStateV6,
-  LegacyGameStateV7
+  LegacyGameStateV7,
+  LegacyGameStateV8
 } from '../game-core/game-state.js';
 import { cropDefs } from '../content/farming.js';
 import { gatheringResourceDefs } from '../content/gathering.js';
@@ -39,7 +41,7 @@ import { cities } from '../content/cities.js';
 import { itemDefs } from '../content/items.js';
 import { craftingRecipes,starterRecipeIds } from '../content/crafting.js';
 import { basePrices } from '../content/economy.js';
-import type { SaveEnvelopeV8 } from './schema.js';
+import type { SaveEnvelopeV9 } from './schema.js';
 
 const FACTION_IDS=['karnholm','ellaria','rivermark','greenwald'] as const;
 
@@ -58,7 +60,7 @@ function looksLikeCharacter(value:unknown):boolean{
     &&isFiniteNumber(value.xp)&&value.xp>=0
     &&isFiniteNumber(value.gold)&&value.gold>=0;
 }
-function looksLikeCurrentCharacter(value:unknown):boolean{
+function looksLikeLegacyCurrentCharacter(value:unknown):boolean{
   if(!looksLikeCharacter(value)||!isObject(value)||!isObject(value.attributes))return false;
   const keys=Object.keys(value.attributes);
   if(keys.length!==ATTRIBUTE_IDS.length)return false;
@@ -67,6 +69,21 @@ function looksLikeCurrentCharacter(value:unknown):boolean{
     if(!isFiniteNumber(attribute)||attribute<1)return false;
   }
   return keys.every(id=>(ATTRIBUTE_IDS as readonly string[]).includes(id));
+}
+function looksLikeAttributeProfile(value:unknown):boolean{
+  if(!isObject(value))return false;
+  const keys=Object.keys(value);
+  if(keys.length!==ATTRIBUTE_IDS.length)return false;
+  for(const id of ATTRIBUTE_IDS){
+    const amount=value[id];
+    if(!isFiniteNumber(amount)||amount<0)return false;
+  }
+  return keys.every(id=>(ATTRIBUTE_IDS as readonly string[]).includes(id));
+}
+function looksLikeCurrentCharacter(value:unknown):boolean{
+  return looksLikeLegacyCurrentCharacter(value)
+    &&isObject(value)
+    &&looksLikeAttributeProfile(value.attributeXp);
 }
 function looksLikeTravel(value:unknown):boolean{
   if(value===null)return true;
@@ -307,11 +324,16 @@ function looksLikeUniversityState(value:unknown):value is UniversityState{
   if(!isFiniteNumber(pending.completesAt)||pending.completesAt<=pending.startedAt)return false;
   return true;
 }
-function looksLikeGameState(value:unknown):value is GameState{
+function looksLikeLegacyStateV8(value:unknown):value is LegacyGameStateV8{
   return looksLikeLegacyStateV7(value)
     &&isObject(value)
-    &&looksLikeCurrentCharacter(value.character)
+    &&looksLikeLegacyCurrentCharacter(value.character)
     &&looksLikeUniversityState(value.university);
+}
+function looksLikeGameState(value:unknown):value is GameState{
+  return looksLikeLegacyStateV8(value)
+    &&isObject(value)
+    &&looksLikeCurrentCharacter(value.character);
 }
 
 export function upgradeLegacyInventory(
@@ -359,7 +381,7 @@ function withDiplomacy(legacy:LegacyGameStateV6):LegacyGameStateV7{
   return {...legacy,diplomacy:createDefaultDiplomacyState()};
 }
 
-function withUniversity(legacy:LegacyGameStateV7):GameState{
+function withUniversity(legacy:LegacyGameStateV7):LegacyGameStateV8{
   return {
     ...legacy,
     character:{
@@ -370,7 +392,17 @@ function withUniversity(legacy:LegacyGameStateV7):GameState{
   };
 }
 
-export function migrateSave(value:unknown):SaveEnvelopeV8|null{
+function withCharacterProfile(legacy:LegacyGameStateV8):GameState{
+  return {
+    ...legacy,
+    character:{
+      ...legacy.character,
+      attributeXp:emptyAttributeProfile()
+    }
+  };
+}
+
+export function migrateSave(value:unknown):SaveEnvelopeV9|null{
   if(!isObject(value)||!isFiniteNumber(value.savedAt))return null;
 
   if(value.schemaVersion===1&&looksLikeLegacyStateV1(value.state)){
@@ -380,7 +412,7 @@ export function migrateSave(value:unknown):SaveEnvelopeV8|null{
       farming:createDefaultFarmingState(),
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:8,savedAt:value.savedAt,state:withUniversity(withDiplomacy(withEconomy(withCrafting(v4))))};
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4)))))};
   }
   if(value.schemaVersion===2&&looksLikeLegacyStateV2(value.state)){
     const v4:LegacyGameStateV4={
@@ -388,29 +420,32 @@ export function migrateSave(value:unknown):SaveEnvelopeV8|null{
       farming:createDefaultFarmingState(),
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:8,savedAt:value.savedAt,state:withUniversity(withDiplomacy(withEconomy(withCrafting(v4))))};
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4)))))};
   }
   if(value.schemaVersion===3&&looksLikeLegacyStateV3(value.state)){
     const v4:LegacyGameStateV4={
       ...value.state,
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:8,savedAt:value.savedAt,state:withUniversity(withDiplomacy(withEconomy(withCrafting(v4))))};
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(v4)))))};
   }
   if(value.schemaVersion===4&&looksLikeLegacyStateV4(value.state)){
-    return {schemaVersion:8,savedAt:value.savedAt,state:withUniversity(withDiplomacy(withEconomy(withCrafting(value.state))))};
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(withUniversity(withDiplomacy(withEconomy(withCrafting(value.state)))))};
   }
   if(value.schemaVersion===5&&looksLikeLegacyStateV5(value.state)){
-    return {schemaVersion:8,savedAt:value.savedAt,state:withUniversity(withDiplomacy(withEconomy(value.state)))};
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(withUniversity(withDiplomacy(withEconomy(value.state))))};
   }
   if(value.schemaVersion===6&&looksLikeLegacyStateV6(value.state)){
-    return {schemaVersion:8,savedAt:value.savedAt,state:withUniversity(withDiplomacy(value.state))};
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(withUniversity(withDiplomacy(value.state)))};
   }
   if(value.schemaVersion===7&&looksLikeLegacyStateV7(value.state)){
-    return {schemaVersion:8,savedAt:value.savedAt,state:withUniversity(value.state)};
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(withUniversity(value.state))};
   }
-  if(value.schemaVersion===8&&looksLikeGameState(value.state)){
-    return {schemaVersion:8,savedAt:value.savedAt,state:value.state};
+  if(value.schemaVersion===8&&looksLikeLegacyStateV8(value.state)){
+    return {schemaVersion:9,savedAt:value.savedAt,state:withCharacterProfile(value.state)};
+  }
+  if(value.schemaVersion===9&&looksLikeGameState(value.state)){
+    return {schemaVersion:9,savedAt:value.savedAt,state:value.state};
   }
   return null;
 }

@@ -41,7 +41,7 @@ export function addInventoryStack(
   const safeClass=Math.max(1,Math.min(5,Math.floor(itemClass)));
   const existing=next.stacks.find(stack=>stack.itemId===itemId&&normalizedStackClass(stack)===safeClass);
   if(existing)existing.quantity+=quantity;
-  else next.stacks.push({itemId,quantity,itemClass:safeClass});
+  else next.stacks.push(safeClass===1?{itemId,quantity}:{itemId,quantity,itemClass:safeClass});
   return next;
 }
 

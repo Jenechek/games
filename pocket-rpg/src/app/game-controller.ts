@@ -8,7 +8,8 @@ import {
   carryingCapacity,
   inventoryMass,
   overloadRatio,
-  type InventoryState
+  type InventoryState,
+  type ItemInstance
 } from '../game-core/items/inventory.js';
 import { itemDefs } from '../content/items.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -18,6 +19,8 @@ import type {
   GatheringResult,
   GatheringState
 } from '../game-core/peaceful/gathering/types.js';
+import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
+import type { CraftingState, WorkshopKind } from '../game-core/crafting/types.js';
 
 export interface UiGameState {
   attributes: Record<AttributeId, number>;
@@ -26,9 +29,10 @@ export interface UiGameState {
   injuries: InjuryState;
   farming: FarmingState;
   gathering: GatheringState;
+  crafting: CraftingState;
 }
 
-export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'merchant' | 'inventory';
+export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'inventory';
 export type InterruptingActionKind = 'travel' | 'combat' | 'merchant' | 'inventory';
 export type AgricultureKind = 'safe' | 'neutral';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
@@ -62,7 +66,8 @@ export function createNewGame(): UiGameState {
     gold:100,
     injuries:cleanInjuryState(),
     farming:createDefaultFarmingState(),
-    gathering:createDefaultGatheringState()
+    gathering:createDefaultGatheringState(),
+    crafting:createDefaultCraftingState()
   };
 }
 
@@ -79,6 +84,63 @@ export function getRecoveryView(injuries: InjuryState, now: number): RecoveryVie
 export function canPerformAction(injuries: InjuryState, action: RecoveryActionKind, now: number): boolean {
   if (action === 'inventory') return true;
   return !isRecoveryLocked(injuries, now);
+}
+
+export type CraftingActionReason='combat'|'recovery'|'workshop'|null;
+
+export function craftingActionReason(
+  injuries:InjuryState,
+  inCombat:boolean,
+  availableWorkshops:readonly WorkshopKind[]|undefined,
+  requiredWorkshop:WorkshopKind,
+  _loadRatioValue:number,
+  now:number
+):CraftingActionReason{
+  if(inCombat)return 'combat';
+  if(!canPerformAction(injuries,'crafting',now))return 'recovery';
+  if(!availableWorkshops?.includes(requiredWorkshop))return 'workshop';
+  return null;
+}
+
+export function canUseCraftingWorkshop(
+  injuries:InjuryState,
+  inCombat:boolean,
+  availableWorkshops:readonly WorkshopKind[]|undefined,
+  requiredWorkshop:WorkshopKind,
+  now:number
+):boolean{
+  return craftingActionReason(
+    injuries,
+    inCombat,
+    availableWorkshops,
+    requiredWorkshop,
+    0,
+    now
+  )===null;
+}
+
+export function canUseCraftingAction(
+  injuries:InjuryState,
+  inCombat:boolean,
+  now:number
+):boolean{
+  return !inCombat&&canPerformAction(injuries,'crafting',now);
+}
+
+export function replaceInventoryInstance(
+  inventory:InventoryState,
+  replacement:ItemInstance
+):InventoryState{
+  const instances=inventory.instances??[];
+  if(!instances.some(instance=>instance.instanceId===replacement.instanceId))return inventory;
+  return {
+    ...inventory,
+    instances:instances.map(instance=>
+      instance.instanceId===replacement.instanceId
+        ? {...replacement,properties:[...replacement.properties]}
+        : {...instance,properties:[...instance.properties]}
+    )
+  };
 }
 
 export function currentLoadRatio(

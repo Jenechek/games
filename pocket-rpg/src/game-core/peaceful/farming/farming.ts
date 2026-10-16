@@ -178,6 +178,21 @@ export function isCellMature(cell: FarmCell | null, now: number): boolean {
   return cell !== null && now >= cell.maturesAt;
 }
 
+export function fieldCellSummary(
+  field: FarmField,
+  now: number
+): {empty:number;growing:number;mature:number} {
+  let empty=0;
+  let growing=0;
+  let mature=0;
+  for(const cell of field.cells){
+    if(cell===null) empty+=1;
+    else if(isCellMature(cell,now)) mature+=1;
+    else growing+=1;
+  }
+  return {empty,growing,mature};
+}
+
 export function startHarvesting(
   state: FarmingState,
   fieldId: string,

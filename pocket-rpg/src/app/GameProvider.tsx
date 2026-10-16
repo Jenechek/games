@@ -58,6 +58,7 @@ interface Commands {
   establishField():void;
   plantField(fieldId:string,cropId:string):void;
   harvestField(fieldId:string):void;
+  stopFarmingCmd():void;
   abandonField(fieldId:string):void;
   buy(id:string,price:number):void;
   sell(id:string,price:number):void;
@@ -337,6 +338,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
           };
         }catch{return s;}
       });
+    },
+    stopFarmingCmd(){
+      setState(s=>s.farmingWork?{...s,farmingWork:null,log:[...s.log,'Работа на поле остановлена. Незавершённый шаг потерян.']}:s);
     },
     abandonField(fieldId){
       setState(s=>{

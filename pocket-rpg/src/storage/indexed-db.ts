@@ -21,7 +21,7 @@ function normalizeState(state:SaveInput):GameState{
       character:state.character,
       world:state.world,
       inventory:{
-        stacks:state.inventory.stacks.map(stack=>({...stack,itemClass:stack.itemClass??1})),
+        stacks:state.inventory.stacks.map(stack=>({...stack})),
         equipment:[...(state.inventory.equipment??[])]
       },
       injuries:state.injuries,

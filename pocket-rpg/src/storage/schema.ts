@@ -1,25 +1,29 @@
 import type {
   GameState,
   LegacyGameStateV1,
-  LegacyGameStateV2
+  LegacyGameStateV2,
+  LegacyGameStateV3
 } from '../game-core/game-state.js';
 
 export interface SaveEnvelopeV1 {
-  schemaVersion: 1;
-  savedAt: number;
-  state: LegacyGameStateV1;
+  schemaVersion:1;
+  savedAt:number;
+  state:LegacyGameStateV1;
 }
-
 export interface SaveEnvelopeV2 {
-  schemaVersion: 2;
-  savedAt: number;
-  state: LegacyGameStateV2;
+  schemaVersion:2;
+  savedAt:number;
+  state:LegacyGameStateV2;
 }
-
 export interface SaveEnvelopeV3 {
-  schemaVersion: 3;
-  savedAt: number;
-  state: GameState;
+  schemaVersion:3;
+  savedAt:number;
+  state:LegacyGameStateV3;
+}
+export interface SaveEnvelopeV4 {
+  schemaVersion:4;
+  savedAt:number;
+  state:GameState;
 }
 
-export type SaveEnvelope = SaveEnvelopeV1 | SaveEnvelopeV2 | SaveEnvelopeV3;
+export type SaveEnvelope=SaveEnvelopeV1|SaveEnvelopeV2|SaveEnvelopeV3|SaveEnvelopeV4;

@@ -1,19 +1,28 @@
-import type { GameState, LegacyGameStateV1 } from '../game-core/game-state.js';
+import type {
+  GameState,
+  LegacyGameStateV1,
+  LegacyGameStateV2
+} from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
-import type { SaveEnvelopeV2 } from './schema.js';
+import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
+import type { SaveEnvelopeV3 } from './schema.js';
 import { migrateSave } from './migrations.js';
 
-function normalizeState(state: GameState | LegacyGameStateV1): GameState {
-  if ('injuries' in state) return state;
+type SaveInput = GameState | LegacyGameStateV2 | LegacyGameStateV1;
+
+function normalizeState(state: SaveInput): GameState {
   return {
-    ...state,
-    injuries: cleanInjuryState()
+    character: state.character,
+    world: state.world,
+    inventory: state.inventory,
+    injuries: 'injuries' in state ? state.injuries : cleanInjuryState(),
+    farming: 'farming' in state ? state.farming : createDefaultFarmingState()
   };
 }
 
-export function encodeSave(state: GameState | LegacyGameStateV1, savedAt: number): string {
-  const envelope: SaveEnvelopeV2 = {
-    schemaVersion: 2,
+export function encodeSave(state: SaveInput, savedAt: number): string {
+  const envelope: SaveEnvelopeV3 = {
+    schemaVersion: 3,
     savedAt,
     state: normalizeState(state)
   };
@@ -31,7 +40,7 @@ export function decodeSave(raw: string): GameState | null {
 export class MemorySaveStore {
   private raw: string | null = null;
 
-  async save(state: GameState | LegacyGameStateV1, now = Date.now()): Promise<void> {
+  async save(state: SaveInput, now = Date.now()): Promise<void> {
     this.raw = encodeSave(state, now);
   }
 
@@ -54,7 +63,7 @@ export class IndexedDbSaveStore {
     });
   }
 
-  async save(state: GameState | LegacyGameStateV1, now = Date.now()): Promise<void> {
+  async save(state: SaveInput, now = Date.now()): Promise<void> {
     const db = await this.db();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction('saves', 'readwrite');

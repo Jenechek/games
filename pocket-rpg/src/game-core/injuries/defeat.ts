@@ -4,14 +4,6 @@ import type { InjuryState } from './types.js';
 
 export type DefeatKind = 'ordinary' | 'boss' | 'miniboss';
 
-function clone(state: InjuryState): InjuryState {
-  return {
-    severity: { ...state.severity },
-    unconsciousUntil: state.unconsciousUntil,
-    restUntil: state.restUntil
-  };
-}
-
 export function applyDefeatConsequences(
   state: InjuryState,
   kind: DefeatKind,
@@ -33,14 +25,15 @@ export function applyDefeatConsequences(
 }
 
 export function reconstructRecovery(state: InjuryState, now: number): InjuryState {
-  const next = clone(state);
-  if (next.unconsciousUntil !== null && now >= next.unconsciousUntil) {
-    next.unconsciousUntil = null;
-  }
-  if (next.restUntil !== null && now >= next.restUntil) {
-    next.restUntil = null;
-  }
-  return next;
+  const unconsciousExpired = state.unconsciousUntil !== null && now >= state.unconsciousUntil;
+  const restExpired = state.restUntil !== null && now >= state.restUntil;
+  if (!unconsciousExpired && !restExpired) return state;
+
+  return {
+    severity: { ...state.severity },
+    unconsciousUntil: unconsciousExpired ? null : state.unconsciousUntil,
+    restUntil: restExpired ? null : state.restUntil
+  };
 }
 
 export function isUnconscious(state: InjuryState, now: number): boolean {

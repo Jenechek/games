@@ -12,9 +12,13 @@ import {
   upgradeCost,
   upgradeItem,
   rerollItemProperty,
-  eligiblePropertyIds
+  eligiblePropertyIds,
+  learnRecipeScroll
 } from '../dist/game-core/crafting/crafting.js';
 import {craftRecipes} from '../dist/content/crafting.js';
+import {itemDefs} from '../dist/content/items.js';
+import {merchants} from '../dist/content/merchants.js';
+import {locations} from '../dist/content/locations.js';
 
 function inv(stacks,instances=[]){return {stacks,instances};}
 function withSkill(level){
@@ -220,4 +224,81 @@ test('reroll costs ten gold excludes other properties and rejects when no altern
   assert.equal(rejected.ok,false);
   assert.equal(rejected.gold,20);
   assert.deepEqual(rejected.instance,narrow);
+});
+
+
+test('recipe scroll learning consumes scroll and ignores current skill level',()=>{
+  const state=createDefaultCraftingState();
+  const inventory=inv([{itemId:'recipe-medium-injury-medicine',quantity:1}]);
+  const result=learnRecipeScroll(state,inventory,'medium-injury-medicine');
+  assert.equal(result.ok,true);
+  assert.equal(result.learned,true);
+  assert.equal(result.goldDelta,0);
+  assert.equal(result.state.knownRecipeIds.includes('medium-injury-medicine'),true);
+  assert.equal(result.inventory.stacks.length,0);
+  assert.equal(result.state.alchemySkill.level,0);
+});
+
+test('duplicate recipe scroll is consumed and converts to five gold',()=>{
+  const state=createDefaultCraftingState();
+  const inventory=inv([{itemId:'recipe-healing-potion',quantity:1}]);
+  const result=learnRecipeScroll(state,inventory,'healing-potion');
+  assert.equal(result.ok,true);
+  assert.equal(result.learned,false);
+  assert.equal(result.goldDelta,5);
+  assert.equal(result.inventory.stacks.length,0);
+});
+
+test('recipe learning fails without the matching scroll and does not mutate state',()=>{
+  const state=createDefaultCraftingState();
+  const inventory=inv([]);
+  const result=learnRecipeScroll(state,inventory,'iron-short-sword');
+  assert.equal(result.ok,false);
+  assert.equal(result.goldDelta,0);
+  assert.deepEqual(result.state,state);
+  assert.deepEqual(result.inventory,inventory);
+});
+
+test('strong injury medicine requires rare material class',()=>{
+  const state=withSkill(100);
+  state.knownRecipeIds.push('strong-injury-medicine');
+  const ordinary=inv([
+    {itemId:'medicinal-herb',quantity:2},
+    {itemId:'wild-berries',quantity:1}
+  ]);
+  assert.equal(
+    craftReadiness(state,ordinary,'strong-injury-medicine','alchemy').reasons.includes('materials'),
+    true
+  );
+  const rare=inv([
+    {itemId:'medicinal-herb-rare',quantity:2},
+    {itemId:'wild-berries-rare',quantity:1}
+  ]);
+  assert.deepEqual(
+    craftReadiness(state,rare,'strong-injury-medicine','alchemy'),
+    {ok:true,reasons:[]}
+  );
+});
+
+test('crafting materials and recipe scrolls are real inventory items sold in Tillanium',()=>{
+  for(const id of ['iron-ingot','wood-plank','leather']){
+    assert.ok(itemDefs[id]);
+    assert.ok(itemDefs[id].weight>0);
+    assert.ok(merchants['tillanium-general'].items.includes(id));
+  }
+  for(const recipeId of [
+    'medium-injury-medicine',
+    'strong-injury-medicine',
+    'iron-short-sword',
+    'wooden-shield',
+    'light-armor'
+  ]){
+    const scrollId=`recipe-${recipeId}`;
+    assert.ok(itemDefs[scrollId]);
+    assert.ok(merchants['tillanium-general'].items.includes(scrollId));
+  }
+});
+
+test('Tillanium exposes forge tailor and alchemy workshops',()=>{
+  assert.deepEqual(locations.tillanium.workshops,['forge','tailor','alchemy']);
 });

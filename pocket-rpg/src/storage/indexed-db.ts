@@ -4,19 +4,22 @@ import type {
   LegacyGameStateV2,
   LegacyGameStateV3,
   LegacyGameStateV4,
-  LegacyGameStateV5
+  LegacyGameStateV5,
+  LegacyGameStateV6
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
 import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gathering.js';
 import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
 import { createDefaultEconomyState } from '../game-core/economy/merchant.js';
+import { createDefaultDiplomacyState } from '../game-core/diplomacy/diplomacy.js';
 import { starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV6 } from './schema.js';
+import type { SaveEnvelopeV7 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
 type SaveInput=
   |GameState
+  |LegacyGameStateV6
   |LegacyGameStateV5
   |LegacyGameStateV4
   |LegacyGameStateV3
@@ -24,6 +27,23 @@ type SaveInput=
   |LegacyGameStateV1;
 
 function normalizeState(state:SaveInput):GameState{
+  if('diplomacy' in state){
+    return {
+      character:state.character,
+      world:state.world,
+      inventory:{
+        stacks:state.inventory.stacks.map(stack=>({...stack})),
+        equipment:[...(state.inventory.equipment??[])]
+      },
+      injuries:state.injuries,
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting,
+      economy:state.economy,
+      diplomacy:state.diplomacy
+    };
+  }
+
   if('economy' in state){
     return {
       character:state.character,
@@ -36,7 +56,8 @@ function normalizeState(state:SaveInput):GameState{
       farming:state.farming,
       gathering:state.gathering,
       crafting:state.crafting,
-      economy:state.economy
+      economy:state.economy,
+      diplomacy:createDefaultDiplomacyState()
     };
   }
 
@@ -52,7 +73,8 @@ function normalizeState(state:SaveInput):GameState{
       farming:state.farming,
       gathering:state.gathering,
       crafting:state.crafting,
-      economy:createDefaultEconomyState()
+      economy:createDefaultEconomyState(),
+      diplomacy:createDefaultDiplomacyState()
     };
   }
 
@@ -68,13 +90,14 @@ function normalizeState(state:SaveInput):GameState{
       ...createDefaultCraftingState(starterRecipeIds),
       nextEquipmentId:upgraded.nextEquipmentId
     },
-    economy:createDefaultEconomyState()
+    economy:createDefaultEconomyState(),
+    diplomacy:createDefaultDiplomacyState()
   };
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV6={
-    schemaVersion:6,
+  const envelope:SaveEnvelopeV7={
+    schemaVersion:7,
     savedAt,
     state:normalizeState(state)
   };

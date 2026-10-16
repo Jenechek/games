@@ -271,7 +271,7 @@ export function advanceFarmingWork(
 
   while (nextWork && now >= nextWork.nextAt && nextWork.queue.length > 0) {
     const index = nextWork.queue[0];
-    const completionAt = nextWork.nextAt;
+    const completionAt: number = nextWork.nextAt;
     let field = findField(nextState, nextWork.fieldId);
 
     if (nextWork.type === 'plant') {

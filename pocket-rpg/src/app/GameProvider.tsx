@@ -400,8 +400,13 @@ export function GameProvider({children}:{children:React.ReactNode}){
       const r=resolveRound(s.combat,{player:pc,enemy:ec},rng.current);
       if(r.state.player.hp<=0)return applyPlayerDefeat(s);
       if(r.state.enemy.hp<=0){
+        const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
         const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-        return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+        return awardCharacterXp(
+          {...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+          combatCharacterXp(enemyLevel),
+          'combat'
+        );
       }
       return{...s,combat:r.state,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
     }),5000);
@@ -430,8 +435,13 @@ export function GameProvider({children}:{children:React.ReactNode}){
         const r=resolveRound(s.combat,{player:{main:{type:'attack'},style:s.style},enemy:ec},rng.current);
         if(r.state.player.hp<=0)return applyPlayerDefeat(s);
         if(r.state.enemy.hp<=0){
+          const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
           const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-          return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+          return awardCharacterXp(
+            {...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+            combatCharacterXp(enemyLevel),
+            'combat'
+          );
         }
         return{...s,combat:r.state,combatItemUsedRound:null};
       });
@@ -691,7 +701,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           );
           const inventory=removeInventoryStack(s.inventory,id,actualQuantity,itemClass);
           const economy=applySellProgress(s.economy,city.id,id,quote,now);
-          return{
+          return awardCharacterXp({
             ...s,
             gold:s.gold+quote.total,
             inventory,
@@ -700,7 +710,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Продано: ${def.label} ×${actualQuantity} за ${quote.total.toFixed(2)}.`]
-          };
+          },tradingXpForSale(quote.total),'trading');
         }catch{
           return{...s,log:[...s.log,'Этот предмет нельзя продать здесь.']};
         }
@@ -726,7 +736,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             equipment:(s.inventory.equipment??[]).filter(entry=>entry.instanceId!==instanceId)
           };
           const economy=applySellProgress(s.economy,city.id,instance.itemId,quote,now);
-          return{
+          return awardCharacterXp({
             ...s,
             gold:s.gold+quote.total,
             inventory,
@@ -735,7 +745,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Продано: ${itemDefs[instance.itemId]?.label??instance.itemId} за ${quote.total.toFixed(2)}.`]
-          };
+          },tradingXpForSale(quote.total),'trading');
         }catch{
           return{...s,log:[...s.log,'Эту экипировку нельзя продать здесь.']};
         }

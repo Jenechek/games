@@ -58,6 +58,10 @@ function roundGold(value:number):number{
   return Math.round(value*100)/100;
 }
 
+function roundPressure(value:number):number{
+  return Math.round(value*10000)/10000;
+}
+
 export function quoteBuy(context:TradePriceContext,pressure:number):PriceQuote{
   const quantity=Math.max(1,Math.floor(context.quantity));
   const advantage=tradingAdvantage(context.tradingLevel,context.charisma);
@@ -78,7 +82,7 @@ export function quoteBuy(context:TradePriceContext,pressure:number):PriceQuote{
     unitPrices,
     total:roundGold(unitPrices.reduce((sum,value)=>sum+value,0)),
     pressureBefore:pressure,
-    pressureAfter:clamp(pressure+quantity*PERSONAL_PRESSURE_PER_UNIT,-0.25,1.5)
+    pressureAfter:roundPressure(clamp(pressure+quantity*PERSONAL_PRESSURE_PER_UNIT,-0.25,1.5))
   };
 }
 
@@ -103,7 +107,7 @@ export function quoteSell(context:TradePriceContext,pressure:number):PriceQuote{
     unitPrices,
     total:roundGold(unitPrices.reduce((sum,value)=>sum+value,0)),
     pressureBefore:pressure,
-    pressureAfter:clamp(pressure-quantity*PERSONAL_PRESSURE_PER_UNIT,-0.25,1.5)
+    pressureAfter:roundPressure(clamp(pressure-quantity*PERSONAL_PRESSURE_PER_UNIT,-0.25,1.5))
   };
 }
 

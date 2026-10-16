@@ -67,6 +67,15 @@ import { cities } from '../content/cities';
 import { merchants } from '../content/merchants';
 import { equipmentSellQuote, stackBuyQuote, stackSellQuote } from './market-controller';
 import { applyCombatConsumable } from '../game-core/alchemy/consumables';
+import {
+  attemptAudience,
+  attemptMediation,
+  completeFactionRequest as resolveFactionRequest,
+  currentFactionRequest,
+  honoredFactionItemUnlocked
+} from '../game-core/diplomacy/diplomacy';
+import { factions } from '../content/factions';
+import { basePrices } from '../content/economy';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -105,6 +114,9 @@ interface Commands {
   upgradeEquipment(instanceId:string):void;
   rerollEquipment(instanceId:string,propertyIndex:number):void;
   useCombatConsumable(itemId:string,itemClass:number):void;
+  factionAudience():void;
+  factionMediation():void;
+  completeFactionRequest():void;
 }
 const Ctx=createContext<{state:RuntimeState;commands:Commands}|null>(null);
 
@@ -182,6 +194,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           gathering:restored.gathering,
           crafting:restored.crafting,
           economy:restored.economy,
+          diplomacy:restored.diplomacy,
           farmingWork:null,
           gatheringSession:null
         }));
@@ -200,11 +213,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         farming:state.farming,
         gathering:state.gathering,
         crafting:state.crafting,
-        economy:state.economy
+        economy:state.economy,
+        diplomacy:state.diplomacy
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy]);
+  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
@@ -531,7 +545,15 @@ export function GameProvider({children}:{children:React.ReactNode}){
         const city=cities[s.world.locationId];
         const merchant=city?merchants[city.merchantId]:undefined;
         const def=itemDefs[id];
-        if(!city||!merchant?.items.includes(id)||!def)return s;
+        if(!city||!merchant||!def)return s;
+        const faction=city.factionId?factions[city.factionId]:undefined;
+        const relation=city.factionId?s.economy.factionRelations[city.factionId]??0:0;
+        const honoredItem=Boolean(
+          faction
+          &&faction.honoredUnlockItemId===id
+          &&honoredFactionItemUnlocked(relation)
+        );
+        if(!merchant.items.includes(id)&&!honoredItem)return s;
         if(s.combat||!canPerformAction(s.injuries,'merchant',now)){
           return{...s,log:[...s.log,'Сейчас нельзя торговать.']};
         }
@@ -794,6 +816,125 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory,
           log:[...s.log,`Использовано: ${itemDefs[itemId].label}.`]
         };
+      });
+    },
+    factionAudience(){
+      setState(s=>{
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        const factionId=city?.factionId;
+        if(!factionId||s.combat||!canPerformAction(s.injuries,'diplomacy',now))return s;
+        const relation=s.economy.factionRelations[factionId]??0;
+        try{
+          const result=attemptAudience({
+            state:s.diplomacy,
+            factionId,
+            relation,
+            charisma:s.attributes.charisma,
+            now,
+            rng:rng.current
+          });
+          return{
+            ...s,
+            diplomacy:result.state,
+            economy:{
+              ...s.economy,
+              factionRelations:{...s.economy.factionRelations,[factionId]:result.relation}
+            },
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,result.success
+              ?`Аудиенция прошла успешно. Отношения с ${factions[factionId].label}: +1.`
+              :'Аудиенция не дала результата.']
+          };
+        }catch{
+          return{...s,log:[...s.log,'Новая аудиенция пока недоступна.']};
+        }
+      });
+    },
+    factionMediation(){
+      setState(s=>{
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        const factionId=city?.factionId;
+        if(!factionId||s.combat||!canPerformAction(s.injuries,'diplomacy',now))return s;
+        const relation=s.economy.factionRelations[factionId]??0;
+        try{
+          const result=attemptMediation({
+            state:s.diplomacy,
+            factionId,
+            relation,
+            charisma:s.attributes.charisma,
+            now,
+            rng:rng.current
+          });
+          return{
+            ...s,
+            diplomacy:result.state,
+            economy:{
+              ...s.economy,
+              factionRelations:{...s.economy.factionRelations,[factionId]:result.relation}
+            },
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,result.success
+              ?`Медиация удалась. Отношения с ${factions[factionId].label}: +2.`
+              :`Медиация провалилась. Отношения с ${factions[factionId].label}: −1.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Медиация пока недоступна.']};
+        }
+      });
+    },
+    completeFactionRequest(){
+      setState(s=>{
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        const factionId=city?.factionId;
+        if(!factionId||s.combat||!canPerformAction(s.injuries,'diplomacy',now))return s;
+        const faction=factions[factionId];
+        const request=currentFactionRequest(faction,now);
+        const relation=s.economy.factionRelations[factionId]??0;
+        const stack=s.inventory.stacks.find(entry=>
+          entry.itemId===request.itemId
+          &&entry.quantity>=request.quantity
+        );
+        const basePrice=basePrices[request.itemId];
+        if(!stack||!basePrice){
+          return{...s,log:[...s.log,'Не хватает предметов для фракционного поручения.']};
+        }
+        try{
+          const result=resolveFactionRequest({
+            state:s.diplomacy,
+            request,
+            relation,
+            baseItemPrice:basePrice
+          });
+          const inventory=removeInventoryStack(
+            s.inventory,
+            request.itemId,
+            request.quantity,
+            normalizedStackClass(stack)
+          );
+          return{
+            ...s,
+            diplomacy:result.state,
+            economy:{
+              ...s.economy,
+              factionRelations:{...s.economy.factionRelations,[factionId]:result.relation}
+            },
+            inventory,
+            gold:s.gold+result.goldReward,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Поручение выполнено: +3 отношения, +${result.goldReward.toFixed(2)} золота.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Поручение этого периода уже выполнено.']};
+        }
       });
     }
   }),[]);

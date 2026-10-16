@@ -16,6 +16,8 @@ import { itemDefs } from '../content/items.js';
 import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
 import { createDefaultEconomyState } from '../game-core/economy/merchant.js';
 import type { EconomyState } from '../game-core/economy/types.js';
+import { createDefaultDiplomacyState } from '../game-core/diplomacy/diplomacy.js';
+import type { DiplomacyState } from '../game-core/diplomacy/types.js';
 import type { CraftingState } from '../game-core/crafting/types.js';
 import { starterRecipeIds } from '../content/crafting.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -35,9 +37,10 @@ export interface UiGameState {
   gathering: GatheringState;
   crafting: CraftingState;
   economy: EconomyState;
+  diplomacy: DiplomacyState;
 }
 
-export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'inventory';
+export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'diplomacy' | 'inventory';
 export type InterruptingActionKind = 'travel' | 'combat' | 'merchant' | 'inventory';
 export type AgricultureKind = 'safe' | 'neutral';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
@@ -73,7 +76,8 @@ export function createNewGame(): UiGameState {
     farming:createDefaultFarmingState(),
     gathering:createDefaultGatheringState(),
     crafting:createDefaultCraftingState(starterRecipeIds),
-    economy:createDefaultEconomyState()
+    economy:createDefaultEconomyState(),
+    diplomacy:createDefaultDiplomacyState()
   };
 }
 

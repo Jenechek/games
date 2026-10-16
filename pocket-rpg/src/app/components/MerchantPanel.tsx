@@ -5,6 +5,8 @@ import {cities} from '../../content/cities';
 import {merchants} from '../../content/merchants';
 import {basePrices} from '../../content/economy';
 import {itemDefs} from '../../content/items';
+import {factions} from '../../content/factions';
+import {honoredFactionItemUnlocked} from '../../game-core/diplomacy/diplomacy';
 import {normalizedStackClass} from '../../game-core/items/inventory';
 import {
   currentMarketEvent,
@@ -29,6 +31,11 @@ export function MerchantPanel(){
   const locked=Boolean(state.combat)||!canPerformAction(state.injuries,'merchant',now);
   const event=currentMarketEvent(city.id,now);
   const relation=city.factionId?state.economy.factionRelations[city.factionId]??0:0;
+  const faction=city.factionId?factions[city.factionId]:undefined;
+  const buyItems:string[]=[...merchant.items];
+  if(faction&&honoredFactionItemUnlocked(relation)&&!buyItems.includes(faction.honoredUnlockItemId)){
+    buyItems.push(faction.honoredUnlockItemId);
+  }
 
   return <section>
     <h2>{merchant.label}</h2>
@@ -38,7 +45,7 @@ export function MerchantPanel(){
     {locked&&<p>Торговля сейчас недоступна.</p>}
 
     <h3>Купить</h3>
-    {merchant.items.map(itemId=>{
+    {buyItems.map(itemId=>{
       const def=itemDefs[itemId];
       if(!def||!basePrices[itemId])return null;
       const itemClass=def.materialClass??1;

@@ -12,6 +12,9 @@ import type { EconomyState } from './economy/types.js';
 import type { DiplomacyState } from './diplomacy/types.js';
 import type { UniversityState } from './university/types.js';
 import { resolveRetraining } from './university/retraining.js';
+import type { SummonRosterState } from './summons/types.js';
+import { reconstructSummonRecovery } from './summons/summons.js';
+import { summonDefinitions } from '../content/summons.js';
 
 export interface LegacyCharacterPersistentState {
   level:number;
@@ -45,8 +48,11 @@ export interface LegacyGameStateV8 extends LegacyGameStateV7 {
   character:LegacyCharacterPersistentStateV8;
   university:UniversityState;
 }
-export interface GameState extends LegacyGameStateV8 {
+export interface LegacyGameStateV9 extends LegacyGameStateV8 {
   character:CharacterPersistentState;
+}
+export interface GameState extends LegacyGameStateV9 {
+  summons:SummonRosterState;
 }
 
 export function reconstructState(state:GameState,now:number):GameState{
@@ -59,6 +65,7 @@ export function reconstructState(state:GameState,now:number):GameState{
     ...state,
     character:{...state.character,attributes:retraining.attributes},
     university:retraining.state,
+    summons:reconstructSummonRecovery(state.summons,summonDefinitions,now),
     world:advanceWorldTime(state.world,now),
     injuries:reconstructRecovery(state.injuries,now)
   };

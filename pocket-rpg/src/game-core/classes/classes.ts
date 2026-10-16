@@ -1,4 +1,5 @@
 import { addSkillXp } from '../progression/skills.js';
+import type { SummonCombatState } from '../summons/types.js';
 import type { PlayerClassDefinition,PlayerClassId,ClassState } from './types.js';
 
 export const CLASS_SKILL_COMBAT_XP_SHARE=0.5;
@@ -51,4 +52,21 @@ export function classSummonLimit(
   definitions:Record<PlayerClassId,PlayerClassDefinition>
 ):number{
   return state.classId?definitions[state.classId].summonLimit:0;
+}
+
+
+export function applyClassSummonModifiers(
+  summons:SummonCombatState[],
+  definition:PlayerClassDefinition
+):SummonCombatState[]{
+  return summons.map(summon=>{
+    const maxHp=Math.max(1,Math.round(summon.maxHp*definition.summonHpMultiplier));
+    const hp=Math.min(maxHp,Math.max(1,Math.round(summon.hp*definition.summonHpMultiplier)));
+    return {
+      ...summon,
+      hp,
+      maxHp,
+      damage:summon.damage*definition.summonDamageMultiplier
+    };
+  });
 }

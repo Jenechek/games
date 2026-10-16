@@ -102,3 +102,24 @@ test('malformed schema v2 injury state fails closed', () => {
     }}
   }), null);
 });
+
+
+test('partial v1 and v2 core state fail closed instead of reaching the UI', () => {
+  assert.equal(migrateSave({
+    schemaVersion:1,
+    savedAt:1,
+    state:{character:{},world:{},inventory:{}}
+  }), null);
+
+  const injuries=cleanInjuryState();
+  assert.equal(migrateSave({
+    schemaVersion:2,
+    savedAt:1,
+    state:{
+      character:{level:1,xp:0},
+      world:{locationId:'tillanium',travel:null,arrivalCount:0},
+      inventory:{stacks:[]},
+      injuries
+    }
+  }), null);
+});

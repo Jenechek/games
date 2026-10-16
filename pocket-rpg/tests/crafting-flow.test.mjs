@@ -4,7 +4,8 @@ import {cleanInjuryState} from '../dist/game-core/injuries/injuries.js';
 import {
   craftingActionReason,
   canUseCraftingWorkshop,
-  replaceInventoryInstance
+  replaceInventoryInstance,
+  recipeScrollEntries
 } from '../dist/app/game-controller.js';
 
 test('crafting workshop guard blocks combat recovery and missing workshop but ignores overload',()=>{
@@ -74,4 +75,20 @@ test('recipe learning is a non-workshop action but still blocked by combat and r
     craftingActionReason(injuries,false,['forge'],'forge',1,1000),
     'recovery'
   );
+});
+
+
+test('recipe scroll entries can be surfaced from inventory independently of workshop UI',()=>{
+  const inventory={
+    stacks:[
+      {itemId:'wild-herb',quantity:2},
+      {itemId:'recipe-light-armor',quantity:1},
+      {itemId:'recipe-iron-short-sword',quantity:2}
+    ],
+    instances:[]
+  };
+  assert.deepEqual(recipeScrollEntries(inventory),[
+    {itemId:'recipe-light-armor',recipeId:'light-armor',quantity:1},
+    {itemId:'recipe-iron-short-sword',recipeId:'iron-short-sword',quantity:2}
+  ]);
 });

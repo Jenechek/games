@@ -2,30 +2,53 @@ import type {
   GameState,
   LegacyGameStateV1,
   LegacyGameStateV2,
-  LegacyGameStateV3
+  LegacyGameStateV3,
+  LegacyGameStateV4
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
 import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gathering.js';
-import type { SaveEnvelopeV4 } from './schema.js';
-import { migrateSave } from './migrations.js';
+import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
+import { starterRecipeIds } from '../content/crafting.js';
+import type { SaveEnvelopeV5 } from './schema.js';
+import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
-type SaveInput=GameState|LegacyGameStateV3|LegacyGameStateV2|LegacyGameStateV1;
+type SaveInput=GameState|LegacyGameStateV4|LegacyGameStateV3|LegacyGameStateV2|LegacyGameStateV1;
 
 function normalizeState(state:SaveInput):GameState{
+  if('crafting' in state){
+    return {
+      character:state.character,
+      world:state.world,
+      inventory:{
+        stacks:state.inventory.stacks.map(stack=>({...stack,itemClass:stack.itemClass??1})),
+        equipment:[...(state.inventory.equipment??[])]
+      },
+      injuries:state.injuries,
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting
+    };
+  }
+
+  const upgraded=upgradeLegacyInventory(state.inventory);
   return {
     character:state.character,
     world:state.world,
-    inventory:state.inventory,
+    inventory:upgraded.inventory,
     injuries:'injuries' in state?state.injuries:cleanInjuryState(),
     farming:'farming' in state?state.farming:createDefaultFarmingState(),
-    gathering:'gathering' in state?state.gathering:createDefaultGatheringState()
+    gathering:'gathering' in state?state.gathering:createDefaultGatheringState(),
+    crafting:{
+      ...createDefaultCraftingState(starterRecipeIds),
+      nextEquipmentId:upgraded.nextEquipmentId
+    }
   };
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV4={
-    schemaVersion:4,
+  const envelope:SaveEnvelopeV5={
+    schemaVersion:5,
     savedAt,
     state:normalizeState(state)
   };

@@ -86,6 +86,33 @@ export function gatheringRareChance(
   );
 }
 
+const categoryHints={
+  herbs:'здесь встречаются травы',
+  berries:'здесь можно найти ягоды',
+  fiber:'здесь есть волокнистые растения'
+} as const;
+
+export function gatheringLocationView(
+  locationId:string,
+  state:GatheringState
+):{hints:string[];discovered:Array<{resourceId:string;label:string}>}{
+  const pool=gatheringPools[locationId]??[];
+  const categories:string[]=[];
+  for(const entry of pool){
+    const category=gatheringResourceDefs[entry.resourceId]?.category;
+    if(category&&!categories.includes(category))categories.push(category);
+  }
+  return {
+    hints:categories.map(category=>categoryHints[category as keyof typeof categoryHints]),
+    discovered:pool
+      .filter(entry=>state.discoveredResourceIds.includes(entry.resourceId))
+      .map(entry=>({
+        resourceId:entry.resourceId,
+        label:gatheringResourceDefs[entry.resourceId].label
+      }))
+  };
+}
+
 export function startGathering(
   state:GatheringState,
   focus:GatheringFocus,

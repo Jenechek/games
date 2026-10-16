@@ -2,6 +2,7 @@ import React from 'react';
 import {useGame} from '../GameProvider';
 import {itemDefs} from '../../content/items';
 import {normalizedStackClass} from '../../game-core/items/inventory';
+import {summonDefinitions} from '../../content/summons';
 
 export function CombatPanel(){
   const{state,commands}=useGame();
@@ -14,6 +15,14 @@ export function CombatPanel(){
     <p>HP: {Math.round(state.combat.player.hp)}/{state.combat.player.maxHp} · Враг: {Math.round(state.combat.enemy.hp)}/{state.combat.enemy.maxHp}</p>
     <p>Мана: {Math.round(state.combat.player.mana)}/{state.combat.player.maxMana} · Выносливость: {Math.round(state.combat.player.stamina)}/{state.combat.player.maxStamina}</p>
     <p>Насыщенность зельями: {state.combat.player.toxicity??0}/100</p>
+    {(state.combat.summons??[]).length>0&&<div>
+      <strong>Призывы:</strong>
+      {(state.combat.summons??[]).map(summon=><div key={summon.instanceId}>
+        {summonDefinitions[summon.definitionId]?.label??summon.definitionId}:
+        {' '}HP {Math.ceil(summon.hp)}/{summon.maxHp},
+        {' '}выносливость {Math.ceil(summon.stamina)}/{summon.maxStamina}
+      </div>)}
+    </div>}
     {(state.combat.player.effects??[]).map(effect=><div key={effect.id}>
       {effect.id==='might'?'Боевой тонус':'Сосредоточение'}: {Math.round(effect.magnitude*100)}% ({effect.roundsRemaining} р.)
     </div>)}

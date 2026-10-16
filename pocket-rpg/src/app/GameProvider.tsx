@@ -50,7 +50,7 @@ import { applyDefeatConsequences } from '../game-core/injuries/defeat';
 import { injuryPenaltySummary } from '../game-core/injuries/injuries';
 
 interface RuntimeState extends UiGameState {
-  inventory:{stacks:{itemId:string;quantity:number}[]};
+  inventory:import('../game-core/items/inventory').InventoryState;
   fishingXp:number;
   fishing?:FishingState|null;
   farmingWork:FarmingWork|null;
@@ -90,7 +90,7 @@ function initial():RuntimeState {
     {itemId:'basic-fishing-rod',quantity:1},
     {itemId:'worms',quantity:1},
     {itemId:'healing-potion',quantity:2}
-  ]};
+  ],instances:[]};
   return {
     ...g,
     inventory,
@@ -343,7 +343,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           const ex=stacks.find(x=>x.itemId===it.itemId);
           if(ex)ex.quantity+=it.quantity;else stacks.push({...it});
         }
-        const inventory={stacks};
+        const inventory={...s.inventory,stacks};
         return{...s,inventory,market:{...s.market,inventory},loot:null};
       });
     },

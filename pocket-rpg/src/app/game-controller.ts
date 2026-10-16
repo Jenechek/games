@@ -165,7 +165,7 @@ export function applyGatheringResults(
     if(existing)existing.quantity+=result.quantity;
     else stacks.push({itemId:result.itemId,quantity:result.quantity});
   }
-  return {stacks};
+  return {...inventory,stacks};
 }
 
 export function applyHarvestResults(
@@ -179,7 +179,7 @@ export function applyHarvestResults(
     if (existing) existing.quantity += result.quantity;
     else stacks.push({itemId:result.itemId,quantity:result.quantity});
   }
-  return {stacks};
+  return {...inventory,stacks};
 }
 
 export function rollFarmingInterruption(
@@ -246,7 +246,7 @@ export function useInjuryMedicine(
     .map(entry => entry.itemId === itemId ? {...entry,quantity:entry.quantity - 1} : {...entry})
     .filter(entry => entry.quantity > 0);
 
-  return {ok:true,inventory:{stacks},injuries:healed};
+  return {ok:true,inventory:{...inventory,stacks},injuries:healed};
 }
 
 export function travelCommand(

@@ -186,7 +186,7 @@ function awardCharacterXp(
   };
 }
 
-function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatState {
+function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Date.now()):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
   const playerMaxHp=Math.max(1,Math.round(100*penalties.maxHpMultiplier));
@@ -213,7 +213,7 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatS
       stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,style:'balanced',
       toxicity:0,effects:[]
     },
-    summons:prepareSummonsForCombat(state.summons,summonDefinitions,Date.now())
+    summons:prepareSummonsForCombat(state.summons,summonDefinitions,now)
   };
 }
 
@@ -444,9 +444,21 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     startEncounter(){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'combat',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
+        const now=Date.now();
+        if(!canPerformAction(s.injuries,'combat',now))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
         const id=locations[s.world.locationId]?.enemies[0];
-        return id?{...s,combat:enemyCombat(id,s),combatItemUsedRound:null,fishing:null,farmingWork:null,gatheringSession:null,log:[...s.log,`Бой: ${enemies[id].label}`]}:s;
+        if(!id)return s;
+        const summons=reconstructSummonRecovery(s.summons,summonDefinitions,now);
+        const prepared={...s,summons};
+        return{
+          ...prepared,
+          combat:enemyCombat(id,prepared,false,now),
+          combatItemUsedRound:null,
+          fishing:null,
+          farmingWork:null,
+          gatheringSession:null,
+          log:[...s.log,`Бой: ${enemies[id].label}`]
+        };
       });
     },
     manualAttack(){

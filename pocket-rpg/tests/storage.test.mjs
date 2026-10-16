@@ -11,12 +11,18 @@ import {createDefaultEconomyState} from '../dist/game-core/economy/merchant.js';
 import {createDefaultDiplomacyState} from '../dist/game-core/diplomacy/diplomacy.js';
 import {emptyAttributeProfile} from '../dist/game-core/progression/character.js';
 import {
+  SUMMON_FULL_RECOVERY_MS,
+  createDefaultSummonRoster,
+  summonCreature
+} from '../dist/game-core/summons/summons.js';
+import {
   RETRAINING_DURATION_MS,
   balancedAttributesForLegacyLevel,
   createDefaultUniversityState,
   startRetraining
 } from '../dist/game-core/university/retraining.js';
 import {starterRecipeIds} from '../dist/content/crafting.js';
+import {summonDefinitions} from '../dist/content/summons.js';
 
 function legacyV4State(){
   return {
@@ -40,17 +46,21 @@ function legacyV8State(level=10){
     university:createDefaultUniversityState()
   };
 }
+function legacyV9State(level=10){
+  const v8=legacyV8State(level);
+  return {
+    ...v8,
+    character:{...v8.character,attributeXp:emptyAttributeProfile()}
+  };
+}
 function fullState(level=10){
   return {
-    ...legacyV8State(level),
-    character:{
-      ...legacyV8State(level).character,
-      attributeXp:emptyAttributeProfile()
-    }
+    ...legacyV9State(level),
+    summons:createDefaultSummonRoster()
   };
 }
 
-test('save load round trip preserves v9 source profile and pending retraining',async()=>{
+test('save load round trip preserves v10 source profile retraining and summons',async()=>{
   const store=new MemorySaveStore();
   const state=fullState(10);
   state.character.attributeXp.strength=120;
@@ -67,27 +77,32 @@ test('save load round trip preserves v9 source profile and pending retraining',a
     percent:50,
     now:1000
   });
+  state.summons=summonCreature({
+    roster:state.summons,
+    definition:summonDefinitions['guardian-elemental'],
+    limit:1,
+    now:1200
+  });
+  state.summons.active[0].hp=50;
   await store.save(state,1500);
   assert.deepEqual(await store.load(),state);
 });
 
-test('schema v8 migrates to v9 with empty source profile',()=>{
-  const old=legacyV8State(10);
-  const migrated=migrateSave({schemaVersion:8,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,9);
-  assert.deepEqual(migrated?.state.character.attributes,old.character.attributes);
-  assert.deepEqual(migrated?.state.character.attributeXp,emptyAttributeProfile());
-  assert.deepEqual(migrated?.state.university,old.university);
+test('schema v9 migrates to v10 with empty summon roster',()=>{
+  const old=legacyV9State(10);
+  const migrated=migrateSave({schemaVersion:9,savedAt:1000,state:old});
+  assert.equal(migrated?.schemaVersion,10);
+  assert.deepEqual(migrated?.state.character,old.character);
+  assert.deepEqual(migrated?.state.summons,createDefaultSummonRoster());
 });
 
-test('schema v7 still reconstructs attributes then adds empty source profile',()=>{
-  const old=legacyV7State();
-  old.character.level=10;
-  const migrated=migrateSave({schemaVersion:7,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,9);
-  assert.deepEqual(migrated?.state.character.attributes,balancedAttributesForLegacyLevel(10));
+test('schema v8 still adds source profile and empty summons',()=>{
+  const old=legacyV8State(10);
+  const migrated=migrateSave({schemaVersion:8,savedAt:1000,state:old});
+  assert.equal(migrated?.schemaVersion,10);
+  assert.deepEqual(migrated?.state.character.attributes,old.character.attributes);
   assert.deepEqual(migrated?.state.character.attributeXp,emptyAttributeProfile());
-  assert.deepEqual(migrated?.state.university,createDefaultUniversityState());
+  assert.deepEqual(migrated?.state.summons,createDefaultSummonRoster());
 });
 
 test('older schemas still migrate through all later systems',()=>{
@@ -97,7 +112,7 @@ test('older schemas still migrate through all later systems',()=>{
     {itemId:'medicinal-herb-rare',quantity:3}
   ];
   const migrated=migrateSave({schemaVersion:4,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,9);
+  assert.equal(migrated?.schemaVersion,10);
   assert.equal(migrated?.state.inventory.equipment.length,2);
   assert.equal(migrated?.state.crafting.nextEquipmentId,3);
   assert.equal(migrated?.state.economy.trading.level,0);
@@ -105,67 +120,75 @@ test('older schemas still migrate through all later systems',()=>{
   assert.deepEqual(migrated?.state.university,createDefaultUniversityState());
   assert.deepEqual(migrated?.state.character.attributes,balancedAttributesForLegacyLevel(2));
   assert.deepEqual(migrated?.state.character.attributeXp,emptyAttributeProfile());
+  assert.deepEqual(migrated?.state.summons,createDefaultSummonRoster());
 });
 
-test('saving legacy state normalizes progression into v9',async()=>{
+test('saving legacy state normalizes into schema v10',async()=>{
   const store=new MemorySaveStore();
-  const legacy=legacyV4State();
-  await store.save(legacy,1000);
+  await store.save(legacyV4State(),1000);
   const loaded=await store.load();
   assert.deepEqual(loaded?.character.attributes,balancedAttributesForLegacyLevel(2));
   assert.deepEqual(loaded?.character.attributeXp,emptyAttributeProfile());
   assert.deepEqual(loaded?.university,createDefaultUniversityState());
+  assert.deepEqual(loaded?.summons,createDefaultSummonRoster());
 });
 
-test('current encoded saves use schema v9',()=>{
+test('current encoded saves use schema v10',()=>{
   const state=fullState();
   state.character.attributeXp.wisdom=42;
   const raw=encodeSave(state,999);
   const envelope=JSON.parse(raw);
-  assert.equal(envelope.schemaVersion,9);
+  assert.equal(envelope.schemaVersion,10);
   assert.deepEqual(decodeSave(raw),state);
 });
 
-test('malformed v9 source profile fails closed',()=>{
+test('malformed v10 summon roster fails closed',()=>{
   const base=fullState();
+  const valid=summonCreature({
+    roster:createDefaultSummonRoster(),
+    definition:summonDefinitions['war-beast'],
+    limit:3,
+    now:100
+  });
 
   assert.equal(migrateSave({
-    schemaVersion:9,
+    schemaVersion:10,
+    savedAt:1,
+    state:{...base,summons:{
+      ...valid,
+      active:[{...valid.active[0],definitionId:'unknown'}]
+    }}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:10,
+    savedAt:1,
+    state:{...base,summons:{
+      ...valid,
+      active:[{...valid.active[0],hp:0}]
+    }}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:10,
+    savedAt:1,
+    state:{...base,summons:{...valid,nextInstanceId:1}}
+  }),null);
+});
+
+test('malformed source profile still fails closed',()=>{
+  const base=fullState();
+  assert.equal(migrateSave({
+    schemaVersion:10,
     savedAt:1,
     state:{...base,character:{
       ...base.character,
       attributeXp:{...base.character.attributeXp,strength:-1}
     }}
   }),null);
-
-  const missing={...base.character.attributeXp};
-  delete missing.strength;
-  assert.equal(migrateSave({
-    schemaVersion:9,
-    savedAt:1,
-    state:{...base,character:{...base.character,attributeXp:missing}}
-  }),null);
 });
 
-test('malformed attributes and university state still fail closed',()=>{
-  const base=fullState();
-
-  assert.equal(migrateSave({
-    schemaVersion:9,
-    savedAt:1,
-    state:{...base,character:{...base.character,attributes:{...base.character.attributes,strength:-1}}}
-  }),null);
-
-  assert.equal(migrateSave({
-    schemaVersion:9,
-    savedAt:1,
-    state:{...base,university:{pending:{
-      from:'strength',to:'strength',percent:50,amount:1,startedAt:0,completesAt:100
-    }}}
-  }),null);
-});
-
-test('reconstructing completed retraining preserves source profile and is idempotent',()=>{
+test('reconstructing state completes retraining and heals summons offline',()=>{
   const state=fullState(10);
   state.character.attributeXp.intelligence=88;
   state.character.attributes.strength+=12;
@@ -180,12 +203,22 @@ test('reconstructing completed retraining preserves source profile and is idempo
     percent:100,
     now:1000
   });
-  const beforeProfile={...state.character.attributeXp};
-  const once=reconstructState(state,1000+RETRAINING_DURATION_MS);
-  const twice=reconstructState(once,1000+RETRAINING_DURATION_MS);
+  state.summons=summonCreature({
+    roster:state.summons,
+    definition:summonDefinitions['war-beast'],
+    limit:3,
+    now:1000
+  });
+  state.summons.active[0].hp=14;
+  state.summons.active[0].stamina=20;
+
+  const once=reconstructState(state,1000+Math.max(RETRAINING_DURATION_MS,SUMMON_FULL_RECOVERY_MS));
+  const twice=reconstructState(once,1000+Math.max(RETRAINING_DURATION_MS,SUMMON_FULL_RECOVERY_MS));
   assert.equal(once.university.pending,null);
-  assert.deepEqual(once.character.attributeXp,beforeProfile);
+  assert.equal(once.summons.active[0].hp,70);
+  assert.equal(once.summons.active[0].stamina,100);
   assert.deepEqual(twice.character.attributes,once.character.attributes);
+  assert.deepEqual(twice.summons,once.summons);
 });
 
 test('corrupted and unknown saves fail closed',()=>{

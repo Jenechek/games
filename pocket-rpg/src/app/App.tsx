@@ -13,13 +13,14 @@ import {GameLog} from './components/GameLog';
 import {InjuryPanel} from './components/InjuryPanel';
 import {CraftingPanel} from './components/CraftingPanel';
 import {FactionPanel} from './components/FactionPanel';
+import {UniversityPanel} from './components/UniversityPanel';
 
 export function App(){
   return <GameProvider>
     <main>
       <header><h1>Pocket RPG</h1><p>Первая игровая вертикаль</p></header>
       <div className="columns">
-        <div><CharacterPanel/><InjuryPanel/><LocationPanel/><CombatPanel/><FishingPanel/><GatheringPanel/><FarmingPanel/><CraftingPanel/><FactionPanel/><MerchantPanel/></div>
+        <div><CharacterPanel/><InjuryPanel/><LocationPanel/><CombatPanel/><FishingPanel/><GatheringPanel/><FarmingPanel/><CraftingPanel/><UniversityPanel/><FactionPanel/><MerchantPanel/></div>
         <div><InventoryPanel/><GameLog/></div>
       </div>
       <LootDialog/>

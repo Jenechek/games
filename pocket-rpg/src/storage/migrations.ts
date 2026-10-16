@@ -82,8 +82,11 @@ function looksLikeLegacyStateV1(value: unknown): value is LegacyGameStateV1 {
 }
 
 function looksLikeLegacyStateV2(value: unknown): value is LegacyGameStateV2 {
-  if (!looksLikeLegacyStateV1(value)) return false;
-  return looksLikeInjuryState((value as Record<string, unknown>).injuries);
+  if (!isObject(value)) return false;
+  return looksLikeCharacter(value.character)
+    && looksLikeWorld(value.world)
+    && looksLikeInventory(value.inventory)
+    && looksLikeInjuryState(value.injuries);
 }
 
 function looksLikeFarmCell(value: unknown): boolean {
@@ -127,8 +130,12 @@ function looksLikeFarmingState(value: unknown): value is FarmingState {
 }
 
 function looksLikeGameState(value: unknown): value is GameState {
-  if (!looksLikeLegacyStateV2(value)) return false;
-  return looksLikeFarmingState((value as Record<string, unknown>).farming);
+  if (!isObject(value)) return false;
+  return looksLikeCharacter(value.character)
+    && looksLikeWorld(value.world)
+    && looksLikeInventory(value.inventory)
+    && looksLikeInjuryState(value.injuries)
+    && looksLikeFarmingState(value.farming);
 }
 
 export function migrateSave(value: unknown): SaveEnvelopeV3 | null {

@@ -1,4 +1,10 @@
 import type { AttributeId } from '../game-core/types.js';
+import { emptyAttributeProfile } from '../game-core/progression/character.js';
+import type { AttributeProfile } from '../game-core/progression/character.js';
+import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
+import type { SummonRosterState } from '../game-core/summons/types.js';
+import { createDefaultClassState } from '../game-core/classes/classes.js';
+import type { ClassState } from '../game-core/classes/types.js';
 import type { SeededRng } from '../game-core/rng.js';
 import { startTravel, advanceWorldTime, type WorldState } from '../game-core/world/travel.js';
 import type { InjuryState } from '../game-core/injuries/types.js';
@@ -18,6 +24,11 @@ import { createDefaultEconomyState } from '../game-core/economy/merchant.js';
 import type { EconomyState } from '../game-core/economy/types.js';
 import { createDefaultDiplomacyState } from '../game-core/diplomacy/diplomacy.js';
 import type { DiplomacyState } from '../game-core/diplomacy/types.js';
+import {
+  createDefaultUniversityState,
+  resolveRetraining
+} from '../game-core/university/retraining.js';
+import type { UniversityState } from '../game-core/university/types.js';
 import type { CraftingState } from '../game-core/crafting/types.js';
 import { starterRecipeIds } from '../content/crafting.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -29,7 +40,10 @@ import type {
 } from '../game-core/peaceful/gathering/types.js';
 
 export interface UiGameState {
+  level:number;
+  xp:number;
   attributes: Record<AttributeId, number>;
+  attributeXp:AttributeProfile;
   world: WorldState;
   gold: number;
   injuries: InjuryState;
@@ -38,9 +52,12 @@ export interface UiGameState {
   crafting: CraftingState;
   economy: EconomyState;
   diplomacy: DiplomacyState;
+  university: UniversityState;
+  summons:SummonRosterState;
+  classState:ClassState;
 }
 
-export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'diplomacy' | 'inventory';
+export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'diplomacy' | 'university' | 'class' | 'inventory';
 export type InterruptingActionKind = 'travel' | 'combat' | 'merchant' | 'inventory';
 export type AgricultureKind = 'safe' | 'neutral';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
@@ -69,7 +86,10 @@ const MEDICINE_ITEMS: Record<InjuryMedicineTier, string> = {
 
 export function createNewGame(): UiGameState {
   return {
+    level:1,
+    xp:0,
     attributes:{strength:10,agility:10,intuition:10,vitality:10,wisdom:10,luck:10,charisma:10,intelligence:10},
+    attributeXp:emptyAttributeProfile(),
     world:{locationId:'tillanium',travel:null,arrivalCount:0},
     gold:100,
     injuries:cleanInjuryState(),
@@ -77,7 +97,10 @@ export function createNewGame(): UiGameState {
     gathering:createDefaultGatheringState(),
     crafting:createDefaultCraftingState(starterRecipeIds),
     economy:createDefaultEconomyState(),
-    diplomacy:createDefaultDiplomacyState()
+    diplomacy:createDefaultDiplomacyState(),
+    university:createDefaultUniversityState(),
+    summons:createDefaultSummonRoster(),
+    classState:createDefaultClassState()
   };
 }
 
@@ -277,8 +300,15 @@ export function travelCommand(
 }
 
 export function tickGame(state: UiGameState, now: number): UiGameState {
+  const retraining=resolveRetraining({
+    state:state.university,
+    attributes:state.attributes,
+    now
+  });
   return {
     ...state,
+    attributes:retraining.attributes,
+    university:retraining.state,
     world:advanceWorldTime(state.world,now),
     injuries:reconstructRecovery(state.injuries,now)
   };

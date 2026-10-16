@@ -5,7 +5,11 @@ import type {
   LegacyGameStateV3,
   LegacyGameStateV4,
   LegacyGameStateV5,
-  LegacyGameStateV6
+  LegacyGameStateV6,
+  LegacyGameStateV7,
+  LegacyGameStateV8,
+  LegacyGameStateV9,
+  LegacyGameStateV10
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -13,12 +17,23 @@ import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gat
 import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
 import { createDefaultEconomyState } from '../game-core/economy/merchant.js';
 import { createDefaultDiplomacyState } from '../game-core/diplomacy/diplomacy.js';
+import {
+  balancedAttributesForLegacyLevel,
+  createDefaultUniversityState
+} from '../game-core/university/retraining.js';
+import { emptyAttributeProfile } from '../game-core/progression/character.js';
+import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
+import { createDefaultClassState } from '../game-core/classes/classes.js';
 import { starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV7 } from './schema.js';
+import type { SaveEnvelopeV11 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
 type SaveInput=
   |GameState
+  |LegacyGameStateV10
+  |LegacyGameStateV9
+  |LegacyGameStateV8
+  |LegacyGameStateV7
   |LegacyGameStateV6
   |LegacyGameStateV5
   |LegacyGameStateV4
@@ -26,10 +41,28 @@ type SaveInput=
   |LegacyGameStateV2
   |LegacyGameStateV1;
 
+function persistentCharacter(
+  character:{
+    level:number;
+    xp:number;
+    gold:number;
+    attributes?:GameState['character']['attributes'];
+    attributeXp?:GameState['character']['attributeXp'];
+  }
+):GameState['character']{
+  return {
+    level:character.level,
+    xp:character.xp,
+    gold:character.gold,
+    attributes:character.attributes??balancedAttributesForLegacyLevel(character.level),
+    attributeXp:character.attributeXp??emptyAttributeProfile()
+  };
+}
+
 function normalizeState(state:SaveInput):GameState{
-  if('diplomacy' in state){
+  if('classState' in state){
     return {
-      character:state.character,
+      character:persistentCharacter(state.character),
       world:state.world,
       inventory:{
         stacks:state.inventory.stacks.map(stack=>({...stack})),
@@ -40,13 +73,76 @@ function normalizeState(state:SaveInput):GameState{
       gathering:state.gathering,
       crafting:state.crafting,
       economy:state.economy,
-      diplomacy:state.diplomacy
+      diplomacy:state.diplomacy,
+      university:state.university,
+      summons:state.summons,
+      classState:state.classState
+    };
+  }
+
+  if('summons' in state){
+    return {
+      character:persistentCharacter(state.character),
+      world:state.world,
+      inventory:{
+        stacks:state.inventory.stacks.map(stack=>({...stack})),
+        equipment:[...(state.inventory.equipment??[])]
+      },
+      injuries:state.injuries,
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting,
+      economy:state.economy,
+      diplomacy:state.diplomacy,
+      university:state.university,
+      summons:state.summons,
+      classState:createDefaultClassState()
+    };
+  }
+
+  if('university' in state){
+    return {
+      character:persistentCharacter(state.character),
+      world:state.world,
+      inventory:{
+        stacks:state.inventory.stacks.map(stack=>({...stack})),
+        equipment:[...(state.inventory.equipment??[])]
+      },
+      injuries:state.injuries,
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting,
+      economy:state.economy,
+      diplomacy:state.diplomacy,
+      university:state.university,
+      summons:createDefaultSummonRoster(),
+      classState:createDefaultClassState()
+    };
+  }
+
+  if('diplomacy' in state){
+    return {
+      character:persistentCharacter(state.character),
+      world:state.world,
+      inventory:{
+        stacks:state.inventory.stacks.map(stack=>({...stack})),
+        equipment:[...(state.inventory.equipment??[])]
+      },
+      injuries:state.injuries,
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting,
+      economy:state.economy,
+      diplomacy:state.diplomacy,
+      university:createDefaultUniversityState(),
+      summons:createDefaultSummonRoster(),
+      classState:createDefaultClassState()
     };
   }
 
   if('economy' in state){
     return {
-      character:state.character,
+      character:persistentCharacter(state.character),
       world:state.world,
       inventory:{
         stacks:state.inventory.stacks.map(stack=>({...stack})),
@@ -57,13 +153,16 @@ function normalizeState(state:SaveInput):GameState{
       gathering:state.gathering,
       crafting:state.crafting,
       economy:state.economy,
-      diplomacy:createDefaultDiplomacyState()
+      diplomacy:createDefaultDiplomacyState(),
+      university:createDefaultUniversityState(),
+      summons:createDefaultSummonRoster(),
+      classState:createDefaultClassState()
     };
   }
 
   if('crafting' in state){
     return {
-      character:state.character,
+      character:persistentCharacter(state.character),
       world:state.world,
       inventory:{
         stacks:state.inventory.stacks.map(stack=>({...stack})),
@@ -74,13 +173,16 @@ function normalizeState(state:SaveInput):GameState{
       gathering:state.gathering,
       crafting:state.crafting,
       economy:createDefaultEconomyState(),
-      diplomacy:createDefaultDiplomacyState()
+      diplomacy:createDefaultDiplomacyState(),
+      university:createDefaultUniversityState(),
+      summons:createDefaultSummonRoster(),
+      classState:createDefaultClassState()
     };
   }
 
   const upgraded=upgradeLegacyInventory(state.inventory);
   return {
-    character:state.character,
+    character:persistentCharacter(state.character),
     world:state.world,
     inventory:upgraded.inventory,
     injuries:'injuries' in state?state.injuries:cleanInjuryState(),
@@ -91,13 +193,16 @@ function normalizeState(state:SaveInput):GameState{
       nextEquipmentId:upgraded.nextEquipmentId
     },
     economy:createDefaultEconomyState(),
-    diplomacy:createDefaultDiplomacyState()
+    diplomacy:createDefaultDiplomacyState(),
+    university:createDefaultUniversityState(),
+    summons:createDefaultSummonRoster(),
+    classState:createDefaultClassState()
   };
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV7={
-    schemaVersion:7,
+  const envelope:SaveEnvelopeV11={
+    schemaVersion:11,
     savedAt,
     state:normalizeState(state)
   };

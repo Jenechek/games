@@ -1,6 +1,11 @@
 import type { WorkshopKind } from '../game-core/crafting/types.js';
 import type { FactionId } from '../game-core/diplomacy/types.js';
 
+export interface UniversityDefinition {
+  label:string;
+  retrainerLabel:string;
+}
+
 export interface CityDefinition {
   id:string;
   label:string;
@@ -8,6 +13,7 @@ export interface CityDefinition {
   workshops:WorkshopKind[];
   factionId:FactionId|null;
   specialization:string;
+  university?:UniversityDefinition;
 }
 
 export const cities:Record<string,CityDefinition>={
@@ -17,7 +23,8 @@ export const cities:Record<string,CityDefinition>={
     merchantId:'tillanium-general',
     workshops:['tailor','alchemist'],
     factionId:null,
-    specialization:'Нейтральный торговый центр'
+    specialization:'Нейтральный торговый центр',
+    university:{label:'Университет Тилланиума',retrainerLabel:'Университетский наставник'}
   },
   karnholm:{
     id:'karnholm',
@@ -33,7 +40,8 @@ export const cities:Record<string,CityDefinition>={
     merchantId:'ellaria-apothecary',
     workshops:['alchemist'],
     factionId:'ellaria',
-    specialization:'Магический центр: алхимия и редкие реагенты'
+    specialization:'Магический центр: алхимия и редкие реагенты',
+    university:{label:'Арканный университет Элларии',retrainerLabel:'Наставник переобучения'}
   },
   rivermark:{
     id:'rivermark',

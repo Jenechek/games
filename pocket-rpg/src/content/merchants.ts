@@ -9,7 +9,15 @@ export const merchants={
       'strong-injury-medicine',
       'iron-short-sword',
       'wooden-shield',
-      'basic-fishing-rod'
+      'basic-fishing-rod',
+      'iron-ingot',
+      'wood-plank',
+      'leather',
+      'recipe-medium-injury-medicine',
+      'recipe-strong-injury-medicine',
+      'recipe-iron-short-sword',
+      'recipe-wooden-shield',
+      'recipe-light-armor'
     ]
   }
 } as const;

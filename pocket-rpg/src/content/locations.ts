@@ -7,9 +7,16 @@ export interface LocationDefinition {
   fishing?:boolean;
   agriculture?:AgricultureKind;
   gathering?:boolean;
+  workshops?:Array<'forge'|'tailor'|'alchemy'>;
 }
 export const locations:Record<string,LocationDefinition>={
-  'tillanium':{id:'tillanium',label:'Тилланиум',neighbors:['city-gate'],enemies:[]},
+  'tillanium':{
+    id:'tillanium',
+    label:'Тилланиум',
+    neighbors:['city-gate'],
+    enemies:[],
+    workshops:['forge','tailor','alchemy']
+  },
   'city-gate':{id:'city-gate',label:'Городские ворота',neighbors:['tillanium','tillanium-fields','meadow'],enemies:[]},
   'tillanium-fields':{id:'tillanium-fields',label:'Поля Тилланиума',neighbors:['city-gate'],enemies:[],agriculture:'safe',gathering:true},
   'meadow':{id:'meadow',label:'Луг',neighbors:['city-gate','forest-edge'],enemies:['young-wolf'],fishing:true,agriculture:'neutral',gathering:true},

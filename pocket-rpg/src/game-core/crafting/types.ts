@@ -13,6 +13,7 @@ export interface CraftingState {
 export interface RecipeMaterialRequirement {
   materialType:string;
   quantity:number;
+  minClass?:number;
 }
 
 export interface StackRecipeOutput {

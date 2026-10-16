@@ -22,7 +22,10 @@ export const craftRecipes:Record<string,CraftRecipe>={
   'strong-injury-medicine':{
     id:'strong-injury-medicine',label:'Сильное средство от травм',workshop:'alchemy',discipline:'alchemy',
     skillRequired:50,xp:60,
-    materials:[{materialType:'medicinal-herb',quantity:2},{materialType:'wild-berries',quantity:1}],
+    materials:[
+      {materialType:'medicinal-herb',quantity:2,minClass:1},
+      {materialType:'wild-berries',quantity:1,minClass:1}
+    ],
     output:{kind:'stack',itemId:'strong-injury-medicine',quantity:1}
   },
   'travel-bag':{

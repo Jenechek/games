@@ -64,7 +64,11 @@ export function recipeMaterialSelection(
     let needed=requirement.quantity;
     const candidates=inventory.stacks
       .map(stack=>({...stack,...materialInfo(stack.itemId)}))
-      .filter(stack=>stack.materialType===requirement.materialType&&stack.quantity>0)
+      .filter(stack=>
+        stack.materialType===requirement.materialType
+        && stack.quantity>0
+        && stack.materialClass>=(requirement.minClass??0)
+      )
       .sort((a,b)=>b.materialClass-a.materialClass||a.itemId.localeCompare(b.itemId));
 
     for(const candidate of candidates){
@@ -307,4 +311,39 @@ export function rerollItemProperty(
   next.properties[propertyIndex]=candidates[index];
   if(next.properties[propertyIndex]===current)return {ok:false,gold,instance:cloneInstance(instance)};
   return {ok:true,gold:gold-10,instance:next};
+}
+
+
+export function learnRecipeScroll(
+  state:CraftingState,
+  inventory:InventoryState,
+  recipeId:string
+):{
+  ok:boolean;
+  learned:boolean;
+  goldDelta:number;
+  state:CraftingState;
+  inventory:InventoryState;
+}{
+  if(!craftRecipes[recipeId]){
+    return {ok:false,learned:false,goldDelta:0,state,inventory};
+  }
+  const scrollId=`recipe-${recipeId}`;
+  const stack=inventory.stacks.find(entry=>entry.itemId===scrollId&&entry.quantity>0);
+  if(!stack){
+    return {ok:false,learned:false,goldDelta:0,state,inventory};
+  }
+  const stacks=inventory.stacks
+    .map(entry=>entry.itemId===scrollId?{...entry,quantity:entry.quantity-1}:{...entry})
+    .filter(entry=>entry.quantity>0);
+  const alreadyKnown=state.knownRecipeIds.includes(recipeId);
+  return {
+    ok:true,
+    learned:!alreadyKnown,
+    goldDelta:alreadyKnown?5:0,
+    state:alreadyKnown
+      ? {...state,knownRecipeIds:[...state.knownRecipeIds]}
+      : {...state,knownRecipeIds:[...state.knownRecipeIds,recipeId]},
+    inventory:{...inventory,stacks}
+  };
 }

@@ -103,8 +103,8 @@ export function scaleFarmingAmbushStats(
   damage: number
 ): {maxHp:number;damage:number} {
   return {
-    maxHp:Math.max(1,Math.round(maxHp*0.7)),
-    damage:Math.max(1,Math.round(damage*0.7))
+    maxHp:Math.max(1,Math.floor((maxHp*7+5)/10)),
+    damage:Math.max(1,Math.floor((damage*7+5)/10))
   };
 }
 

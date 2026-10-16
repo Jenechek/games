@@ -3,3 +3,24 @@ test('fishing runs automatic cycles and leaves next cycle active',()=>{const sta
 test('stopping mid-cycle loses progress',()=>{const state=startFishing({inventory:{stacks:[]},fishingXp:0},'worms',1000,1);const restarted=startFishing(stopFishing(state),'worms',3000,1);assert.equal(restarted.fishing.nextAt,8000);});
 test('bait changes weights without excluding other fish',()=>{const a=weightedFishChance(.2,1.5,.1),b=weightedFishChance(.2,.8,.1);assert.ok(a>b);assert.ok(b>0);});
 test('cannot start fishing at 120 percent load',()=>{assert.throws(()=>startFishing({inventory:{stacks:[]},fishingXp:0},'worms',0,1.2));assert.doesNotThrow(()=>startFishing({inventory:{stacks:[]},fishingXp:0},'worms',0,1.199));});
+
+test('ongoing fishing stops immediately after a catch reaches the peaceful overload cutoff',()=>{
+  const state=startFishing({
+    inventory:{stacks:[{itemId:'healing-potion',quantity:198}]},
+    fishingXp:0
+  },'worms',0,1.188);
+  const out=advanceFishing(
+    state,
+    20000,
+    {next:()=>0},
+    'meadow',
+    10,
+    inventory=>{
+      const potionMass=(inventory.stacks.find(x=>x.itemId==='healing-potion')?.quantity??0)*0.3;
+      const roachMass=(inventory.stacks.find(x=>x.itemId==='roach')?.quantity??0)*0.4;
+      return (potionMass+roachMass)/50<1.2;
+    }
+  );
+  assert.equal(out.inventory.stacks.find(x=>x.itemId==='roach')?.quantity,2);
+  assert.equal(out.fishing,null);
+});

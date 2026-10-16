@@ -1,10 +1,14 @@
 import React,{createContext,useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {
+  applyGatheringResults,
   applyHarvestResults,
   canPerformAction,
+  canStartGatheringAction,
   canStartFarmingAction,
+  canStartFishingAction,
   canStartFishingWithFarming,
   createNewGame,
+  currentLoadRatio,
   rollFarmingInterruption,
   scaleFarmingAmbushStats,
   tickGame,
@@ -29,6 +33,16 @@ import {
   startPlanting
 } from '../game-core/peaceful/farming/farming';
 import type { FarmingWork } from '../game-core/peaceful/farming/types';
+import {
+  advanceGathering,
+  startGathering,
+  stopGathering
+} from '../game-core/peaceful/gathering/gathering';
+import type {
+  GatheringFocus,
+  GatheringSession
+} from '../game-core/peaceful/gathering/types';
+import { gatheringResourceDefs } from '../content/gathering';
 import { buyItem, sellItem, type MarketState } from '../game-core/economy/merchant';
 import { IndexedDbSaveStore } from '../storage/indexed-db';
 import { reconstructState } from '../game-core/game-state';
@@ -40,6 +54,7 @@ interface RuntimeState extends UiGameState {
   fishingXp:number;
   fishing?:FishingState|null;
   farmingWork:FarmingWork|null;
+  gatheringSession:GatheringSession|null;
   combat?:CombatState|null;
   combatMode:'auto'|'manual'; paused:boolean; style:CombatStyle;
   loot?:LootResult|null;
@@ -61,6 +76,8 @@ interface Commands {
   harvestField(fieldId:string):void;
   stopFarmingCmd():void;
   abandonField(fieldId:string):void;
+  startGatheringCmd(focus:GatheringFocus):void;
+  stopGatheringCmd():void;
   buy(id:string,price:number):void;
   sell(id:string,price:number):void;
   useInjuryMedicine(tier:InjuryMedicineTier):void;
@@ -80,6 +97,7 @@ function initial():RuntimeState {
     fishingXp:0,
     fishing:null,
     farmingWork:null,
+    gatheringSession:null,
     combat:null,
     combatMode:'auto',
     paused:false,
@@ -134,7 +152,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory:restored.inventory,
           injuries:restored.injuries,
           farming:restored.farming,
+          gathering:restored.gathering,
           farmingWork:null,
+          gatheringSession:null,
           market:{...s.market,gold:restored.character.gold,inventory:restored.inventory}
         }));
       }
@@ -149,11 +169,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         world:state.world,
         inventory:state.inventory,
         injuries:state.injuries,
-        farming:state.farming
+        farming:state.farming,
+        gathering:state.gathering
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming]);
+  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
@@ -179,6 +200,15 @@ export function GameProvider({children}:{children:React.ReactNode}){
           market:{...n.market,inventory}
         };
 
+        if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
+          n={
+            ...n,
+            farmingWork:null,
+            log:[...n.log,'Работа на поле остановлена: перегруз достиг 120%.']
+          };
+          break;
+        }
+
         if(step.completedCells>0){
           const enemyId=rollFarmingInterruption(agriculture,rng.current);
           if(enemyId){
@@ -194,9 +224,51 @@ export function GameProvider({children}:{children:React.ReactNode}){
         }
       }
 
-      if(n.fishing && !n.farmingWork && canPerformAction(n.injuries,'fishing',now)){
-        const f=advanceFishing(n,now,rng.current,n.world.locationId,n.attributes.luck);
+      if(n.gatheringSession && !n.farmingWork && canPerformAction(n.injuries,'gathering',now)){
+        const gathered=advanceGathering(
+          n.gathering,
+          n.gatheringSession,
+          now,
+          rng.current,
+          n.world.locationId,
+          n.attributes.luck,
+          0,
+          results=>currentLoadRatio(
+            applyGatheringResults(n.inventory,results),
+            n.attributes
+          )<1.2
+        );
+        const inventory=applyGatheringResults(n.inventory,gathered.results);
+        const resultLog=gathered.results.map(result=>{
+          const label=gatheringResourceDefs[result.resourceId]?.label ?? result.resourceId;
+          return `Сбор: ${label} ×${result.quantity}${result.rare?' (редкий)':''}.`;
+        });
+        n={
+          ...n,
+          gathering:gathered.gathering,
+          gatheringSession:gathered.session,
+          inventory,
+          market:{...n.market,inventory},
+          log:resultLog.length?[...n.log,...resultLog]:n.log
+        };
+        if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
+          n={...n,gatheringSession:null,log:[...n.log,'Сбор остановлен: перегруз достиг 120%.']};
+        }
+      }
+
+      if(n.fishing && !n.farmingWork && !n.gatheringSession && canPerformAction(n.injuries,'fishing',now)){
+        const f=advanceFishing(
+          n,
+          now,
+          rng.current,
+          n.world.locationId,
+          n.attributes.luck,
+          inventory=>currentLoadRatio(inventory,n.attributes)<1.2
+        );
         n={...n,...f};
+        if(n.fishing===null){
+          n={...n,log:[...n.log,'Рыбалка остановлена: перегруз достиг 120%.']};
+        }
       }
       return n;
     }),250);
@@ -209,6 +281,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
       combat:null,
       fishing:null,
       farmingWork:null,
+      gatheringSession:null,
       injuries:applyDefeatConsequences(s.injuries,'ordinary',Date.now(),rng.current),
       log:[...s.log,'Поражение. Персонаж потерял сознание и получил травму.']
     };
@@ -235,14 +308,15 @@ export function GameProvider({children}:{children:React.ReactNode}){
     travelTo(id){
       setState(s=>{
         if(!canPerformAction(s.injuries,'travel',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя путешествовать: персонаж восстанавливается.']};
-        return{...s,...travelCommand(s,id,Date.now(),rng.current),fishing:null,farmingWork:null};
+        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        return{...s,...travelCommand(s,id,Date.now(),rng.current,ratio),fishing:null,farmingWork:null,gatheringSession:null};
       });
     },
     startEncounter(){
       setState(s=>{
         if(!canPerformAction(s.injuries,'combat',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
         const id=locations[s.world.locationId]?.enemies[0];
-        return id?{...s,combat:enemyCombat(id,s),fishing:null,farmingWork:null,log:[...s.log,`Бой: ${enemies[id].label}`]}:s;
+        return id?{...s,combat:enemyCombat(id,s),fishing:null,farmingWork:null,gatheringSession:null,log:[...s.log,`Бой: ${enemies[id].label}`]}:s;
       });
     },
     manualAttack(){
@@ -275,9 +349,14 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     startFishingCmd(){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'fishing',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя рыбачить: персонаж восстанавливается.']};
-        if(!canStartFishingWithFarming(s.farmingWork))return{...s,log:[...s.log,'Сначала остановите работу на поле.']};
-        return locations[s.world.locationId]?.fishing?startFishing(s,'worms',Date.now(),1) as RuntimeState:s;
+        const now=Date.now();
+        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        if(!canStartFishingAction(s.injuries,Boolean(s.combat),Boolean(s.farmingWork),ratio,now)){
+          return{...s,log:[...s.log,'Сейчас нельзя рыбачить.']};
+        }
+        return locations[s.world.locationId]?.fishing
+          ? {...startFishing(s,'worms',now,ratio),gatheringSession:null} as RuntimeState
+          : s;
       });
     },
     stopFishingCmd(){setState(s=>stopFishing(s) as RuntimeState);},
@@ -285,12 +364,18 @@ export function GameProvider({children}:{children:React.ReactNode}){
       setState(s=>{
         const location=locations[s.world.locationId];
         if(!location?.agriculture)return s;
-        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now()))return{...s,log:[...s.log,'Сейчас нельзя работать на поле.']};
+        if(!canStartFarmingAction(
+          s.injuries,
+          Boolean(s.combat),
+          currentLoadRatio(s.inventory,s.attributes),
+          Date.now()
+        ))return{...s,log:[...s.log,'Сейчас нельзя работать на поле.']};
         if(s.farmingWork)return s;
         try{
           return{
             ...s,
             fishing:null,
+            gatheringSession:null,
             farmingWork:startFieldEstablishment(s.farming,s.world.locationId,Date.now()),
             log:[...s.log,'Начата подготовка нового поля.']
           };
@@ -299,13 +384,19 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     plantField(fieldId,cropId){
       setState(s=>{
-        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now())||s.farmingWork)return s;
+        if(!canStartFarmingAction(
+          s.injuries,
+          Boolean(s.combat),
+          currentLoadRatio(s.inventory,s.attributes),
+          Date.now()
+        )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
         if(!field||field.locationId!==s.world.locationId||!locations[s.world.locationId]?.agriculture)return s;
         try{
           return{
             ...s,
             fishing:null,
+            gatheringSession:null,
             farmingWork:startPlanting(
               s.farming,
               fieldId,
@@ -321,13 +412,19 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     harvestField(fieldId){
       setState(s=>{
-        if(!canStartFarmingAction(s.injuries,Boolean(s.combat),Date.now())||s.farmingWork)return s;
+        if(!canStartFarmingAction(
+          s.injuries,
+          Boolean(s.combat),
+          currentLoadRatio(s.inventory,s.attributes),
+          Date.now()
+        )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
         if(!field||field.locationId!==s.world.locationId||!locations[s.world.locationId]?.agriculture)return s;
         try{
           return{
             ...s,
             fishing:null,
+            gatheringSession:null,
             farmingWork:startHarvesting(
               s.farming,
               fieldId,
@@ -349,13 +446,44 @@ export function GameProvider({children}:{children:React.ReactNode}){
         return{...s,farming:abandonField(s.farming,fieldId),log:[...s.log,'Поле заброшено вместе со всеми посевами.']};
       });
     },
+    startGatheringCmd(focus){
+      setState(s=>{
+        const now=Date.now();
+        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        if(!canStartGatheringAction(s.injuries,Boolean(s.combat),Boolean(s.farmingWork),ratio,now)){
+          return{...s,log:[...s.log,'Сейчас нельзя заниматься сбором ресурсов.']};
+        }
+        try{
+          return{
+            ...s,
+            fishing:null,
+            gatheringSession:startGathering(
+              s.gathering,
+              focus,
+              now,
+              s.world.locationId,
+              s.attributes.agility,
+              s.attributes.intuition,
+              ratio
+            ),
+            log:[...s.log,'Начат сбор ресурсов.']
+          };
+        }catch{return s;}
+      });
+    },
+    stopGatheringCmd(){
+      setState(s=>s.gatheringSession
+        ? {...s,gatheringSession:stopGathering(s.gatheringSession),log:[...s.log,'Сбор ресурсов остановлен.']}
+        : s
+      );
+    },
     buy(id,price){
       setState(s=>{
         if(!canPerformAction(s.injuries,'merchant',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя торговать: персонаж восстанавливается.']};
         try{
           const m=buyItem({...s.market,gold:s.gold,inventory:s.inventory},id,1,Date.now(),price);
-          return{...s,gold:m.gold,inventory:m.inventory,market:m,farmingWork:null};
-        }catch{return{...s,farmingWork:null};}
+          return{...s,gold:m.gold,inventory:m.inventory,market:m,farmingWork:null,gatheringSession:null};
+        }catch{return{...s,farmingWork:null,gatheringSession:null};}
       });
     },
     sell(id,price){
@@ -363,8 +491,8 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canPerformAction(s.injuries,'merchant',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя торговать: персонаж восстанавливается.']};
         try{
           const m=sellItem({...s.market,gold:s.gold,inventory:s.inventory},id,1,Date.now(),price);
-          return{...s,gold:m.gold,inventory:m.inventory,market:m,farmingWork:null};
-        }catch{return{...s,farmingWork:null};}
+          return{...s,gold:m.gold,inventory:m.inventory,market:m,farmingWork:null,gatheringSession:null};
+        }catch{return{...s,farmingWork:null,gatheringSession:null};}
       });
     },
     useInjuryMedicine(tier){

@@ -4,9 +4,20 @@ import { startTravel, advanceWorldTime, type WorldState } from '../game-core/wor
 import type { InjuryState } from '../game-core/injuries/types.js';
 import { cleanInjuryState, clearAllInjuries, healInjuries, injuryPenaltySummary, totalInjurySeverity } from '../game-core/injuries/injuries.js';
 import { isForcedRest, isRecoveryLocked, isUnconscious, reconstructRecovery } from '../game-core/injuries/defeat.js';
-import type { InventoryState } from '../game-core/items/inventory.js';
+import {
+  carryingCapacity,
+  inventoryMass,
+  overloadRatio,
+  type InventoryState
+} from '../game-core/items/inventory.js';
+import { itemDefs } from '../content/items.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
 import type { FarmingState, FarmingWork, HarvestResult } from '../game-core/peaceful/farming/types.js';
+import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gathering.js';
+import type {
+  GatheringResult,
+  GatheringState
+} from '../game-core/peaceful/gathering/types.js';
 
 export interface UiGameState {
   attributes: Record<AttributeId, number>;
@@ -14,9 +25,10 @@ export interface UiGameState {
   gold: number;
   injuries: InjuryState;
   farming: FarmingState;
+  gathering: GatheringState;
 }
 
-export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'merchant' | 'inventory';
+export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'merchant' | 'inventory';
 export type InterruptingActionKind = 'travel' | 'combat' | 'merchant' | 'inventory';
 export type AgricultureKind = 'safe' | 'neutral';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
@@ -49,7 +61,8 @@ export function createNewGame(): UiGameState {
     world:{locationId:'tillanium',travel:null,arrivalCount:0},
     gold:100,
     injuries:cleanInjuryState(),
-    farming:createDefaultFarmingState()
+    farming:createDefaultFarmingState(),
+    gathering:createDefaultGatheringState()
   };
 }
 
@@ -68,12 +81,63 @@ export function canPerformAction(injuries: InjuryState, action: RecoveryActionKi
   return !isRecoveryLocked(injuries, now);
 }
 
+export function currentLoadRatio(
+  inventory: InventoryState,
+  attributes: {strength:number;vitality:number},
+  bagBonus = 0
+): number {
+  const mass=Math.round(inventoryMass(inventory,itemDefs)*1e9)/1e9;
+  return overloadRatio(mass,carryingCapacity(attributes,bagBonus));
+}
+
+export type GatheringStartReason='combat'|'farming'|'overload'|'recovery'|null;
+
+export function gatheringStartReason(
+  injuries: InjuryState,
+  inCombat: boolean,
+  hasFarmingWork: boolean,
+  loadRatioValue: number,
+  now: number
+): GatheringStartReason {
+  if(inCombat)return 'combat';
+  if(hasFarmingWork)return 'farming';
+  if(loadRatioValue>=1.2)return 'overload';
+  if(!canPerformAction(injuries,'gathering',now))return 'recovery';
+  return null;
+}
+
+export function canStartGatheringAction(
+  injuries: InjuryState,
+  inCombat: boolean,
+  hasFarmingWork: boolean,
+  loadRatioValue: number,
+  now: number
+): boolean {
+  return gatheringStartReason(injuries,inCombat,hasFarmingWork,loadRatioValue,now)===null;
+}
+
+export function canStartFishingAction(
+  injuries: InjuryState,
+  inCombat: boolean,
+  hasFarmingWork: boolean,
+  loadRatioValue: number,
+  now: number
+): boolean {
+  return !inCombat
+    && !hasFarmingWork
+    && loadRatioValue < 1.2
+    && canPerformAction(injuries,'fishing',now);
+}
+
 export function canStartFarmingAction(
   injuries: InjuryState,
   inCombat: boolean,
+  loadRatioValue: number,
   now: number
 ): boolean {
-  return !inCombat && canPerformAction(injuries,'farming',now);
+  return !inCombat
+    && loadRatioValue < 1.2
+    && canPerformAction(injuries,'farming',now);
 }
 
 export function canStartFishingWithFarming(farmingWork: FarmingWork | null | undefined): boolean {
@@ -82,6 +146,26 @@ export function canStartFishingWithFarming(farmingWork: FarmingWork | null | und
 
 export function shouldInterruptFarmingWork(action: InterruptingActionKind): boolean {
   return action !== 'inventory';
+}
+
+export function shouldInterruptGathering(
+  action:'travel'|'combat'|'merchant'|'farming'|'fishing'|'inventory'
+):boolean{
+  return action!=='inventory';
+}
+
+export function applyGatheringResults(
+  inventory:InventoryState,
+  results:GatheringResult[]
+):InventoryState{
+  if(results.length===0)return inventory;
+  const stacks=inventory.stacks.map(stack=>({...stack}));
+  for(const result of results){
+    const existing=stacks.find(stack=>stack.itemId===result.itemId);
+    if(existing)existing.quantity+=result.quantity;
+    else stacks.push({itemId:result.itemId,quantity:result.quantity});
+  }
+  return {stacks};
 }
 
 export function applyHarvestResults(

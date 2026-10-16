@@ -3,3 +3,10 @@ test('inventory mass counts only inventory stack mass',()=>assert.equal(inventor
 test('overload peaceful cutoff is exactly 120 percent',()=>{assert.equal(canStartPeacefulActivity(119.9,100),true);assert.equal(canStartPeacefulActivity(120,100),false);});
 test('capacity uses strength vitality and bag bonus',()=>assert.equal(carryingCapacity({strength:10,vitality:10},20),70));
 test('cannot equip without attribute or skill requirements',()=>{const char={attributes:{strength:20,agility:10,intuition:10,vitality:10,wisdom:10,luck:10,charisma:10,intelligence:10},skills:{'short-sword':10}};const result=canEquip(char,itemDefs['rare-short-sword']);assert.equal(result.ok,false);assert.ok(result.reasons.includes('skill:short-sword'));});
+
+import {fishDefs} from '../dist/content/fishing.js';
+test('caught fish use authored fish mass in inventory calculations',()=>{
+  for(const fish of Object.values(fishDefs)){
+    assert.equal(itemDefs[fish.id]?.weight,fish.weight);
+  }
+});

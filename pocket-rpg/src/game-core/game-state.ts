@@ -3,6 +3,7 @@ import type { WorldState } from './world/travel.js';
 import { advanceWorldTime } from './world/travel.js';
 import type { InjuryState } from './injuries/types.js';
 import { reconstructRecovery } from './injuries/defeat.js';
+import type { FarmingState } from './peaceful/farming/types.js';
 
 export interface CharacterPersistentState {
   level: number;
@@ -10,14 +11,19 @@ export interface CharacterPersistentState {
   gold: number;
 }
 
-export interface GameState {
+export interface LegacyGameStateV1 {
   character: CharacterPersistentState;
   world: WorldState;
   inventory: InventoryState;
+}
+
+export interface LegacyGameStateV2 extends LegacyGameStateV1 {
   injuries: InjuryState;
 }
 
-export type LegacyGameStateV1 = Omit<GameState, 'injuries'>;
+export interface GameState extends LegacyGameStateV2 {
+  farming: FarmingState;
+}
 
 export function reconstructState(state: GameState, now: number): GameState {
   return {

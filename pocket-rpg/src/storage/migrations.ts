@@ -223,13 +223,13 @@ function looksLikeLegacyStateV3(value:unknown):value is LegacyGameStateV3{
 function looksLikeLegacyStateV4(value:unknown):value is LegacyGameStateV4{
   return looksLikeLegacyStateV3(value)&&isObject(value)&&looksLikeGatheringState(value.gathering);
 }
-function validEquipmentCounter(value:LegacyGameStateV5):boolean{
+function validEquipmentCounter(inventory:InventoryState,crafting:CraftingState):boolean{
   let highest=0;
-  for(const instance of value.inventory.equipment??[]){
+  for(const instance of inventory.equipment??[]){
     const match=/^eq-(\d+)$/.exec(instance.instanceId);
     if(match)highest=Math.max(highest,Number(match[1]));
   }
-  return value.crafting.nextEquipmentId>highest;
+  return crafting.nextEquipmentId>highest;
 }
 function looksLikeLegacyStateV5(value:unknown):value is LegacyGameStateV5{
   if(!isObject(value))return false;
@@ -240,7 +240,7 @@ function looksLikeLegacyStateV5(value:unknown):value is LegacyGameStateV5{
     ||!looksLikeFarmingState(value.farming)
     ||!looksLikeGatheringState(value.gathering)
     ||!looksLikeCraftingState(value.crafting))return false;
-  return validEquipmentCounter(value as LegacyGameStateV5);
+  return validEquipmentCounter(value.inventory as InventoryState,value.crafting as CraftingState);
 }
 function looksLikeGameState(value:unknown):value is GameState{
   return looksLikeLegacyStateV5(value)

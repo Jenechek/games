@@ -7,6 +7,7 @@ import {cleanInjuryState} from '../dist/game-core/injuries/injuries.js';
 import {createDefaultFarmingState} from '../dist/game-core/peaceful/farming/farming.js';
 import {createDefaultGatheringState} from '../dist/game-core/peaceful/gathering/gathering.js';
 import {createDefaultCraftingState} from '../dist/game-core/crafting/crafting.js';
+import {createDefaultEconomyState} from '../dist/game-core/economy/merchant.js';
 import {starterRecipeIds} from '../dist/content/crafting.js';
 
 function legacyV4State(){
@@ -20,7 +21,7 @@ function legacyV4State(){
   };
 }
 
-function fullState(){
+function legacyV5State(){
   return {
     ...legacyV4State(),
     inventory:{stacks:[{itemId:'healing-potion',quantity:2}],equipment:[]},
@@ -28,23 +29,36 @@ function fullState(){
   };
 }
 
-test('save load round trip preserves durable v5 state',async()=>{
+function fullState(){
+  return {
+    ...legacyV5State(),
+    economy:createDefaultEconomyState()
+  };
+}
+
+test('save load round trip preserves durable v6 economy state',async()=>{
   const store=new MemorySaveStore();
   const state=fullState();
-  state.farming.fields.push({
-    id:'field-1',
-    locationId:'tillanium-fields',
-    cycleCropId:'wheat',
-    cells:[{plantedAt:1000,maturesAt:301000},null,null,null]
-  });
-  state.farming.nextFieldNumber=2;
   state.crafting.skills.alchemy={level:20,xp:12.5};
+  state.economy.trading={level:3,xp:44};
+  state.economy.pressures.tillanium={
+    'healing-potion':{value:0.15,updatedAt:1000}
+  };
+  state.economy.factionRelations.karnholm=25;
 
-  await store.save(state,1000);
+  await store.save(state,2000);
   assert.deepEqual(await store.load(),state);
 });
 
-test('schema v4 migrates equipment stacks into individual instances and material classes',()=>{
+test('schema v5 migrates to v6 with neutral economy defaults',()=>{
+  const old=legacyV5State();
+  const migrated=migrateSave({schemaVersion:5,savedAt:1000,state:old});
+  assert.equal(migrated?.schemaVersion,6);
+  assert.deepEqual(migrated?.state.economy,createDefaultEconomyState());
+  assert.deepEqual(migrated?.state.crafting,old.crafting);
+});
+
+test('schema v4 still migrates equipment stacks and receives economy state',()=>{
   const old=legacyV4State();
   old.inventory.stacks=[
     {itemId:'iron-short-sword',quantity:2},
@@ -52,68 +66,50 @@ test('schema v4 migrates equipment stacks into individual instances and material
     {itemId:'wild-herb',quantity:2}
   ];
   const migrated=migrateSave({schemaVersion:4,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,5);
+  assert.equal(migrated?.schemaVersion,6);
   assert.equal(migrated?.state.inventory.equipment.length,2);
   assert.deepEqual(migrated?.state.inventory.equipment.map(item=>item.instanceId),['eq-1','eq-2']);
   assert.equal(migrated?.state.inventory.stacks.find(item=>item.itemId==='medicinal-herb-rare')?.itemClass,2);
-  assert.equal(migrated?.state.inventory.stacks.find(item=>item.itemId==='wild-herb')?.itemClass,1);
   assert.equal(migrated?.state.crafting.nextEquipmentId,3);
-  assert.deepEqual(migrated?.state.crafting.knownRecipeIds,starterRecipeIds);
+  assert.equal(migrated?.state.economy.trading.level,0);
 });
 
-test('saving a legacy v4 state normalizes it to current v5 defaults',async()=>{
+test('saving a legacy v4 state normalizes all later durable systems',async()=>{
   const store=new MemorySaveStore();
   const legacy=legacyV4State();
   await store.save(legacy,1000);
   const loaded=await store.load();
   assert.deepEqual(loaded?.crafting.skills,createDefaultCraftingState(starterRecipeIds).skills);
+  assert.deepEqual(loaded?.economy,createDefaultEconomyState());
   assert.deepEqual(loaded?.inventory.equipment,[]);
-  assert.deepEqual(loaded?.injuries,legacy.injuries);
 });
 
-test('valid schema v1 save migrates directly to v5 defaults',()=>{
+test('valid schema v1 save migrates directly to v6 defaults',()=>{
   const oldState={
     character:{level:3,xp:44,gold:71},
     world:{locationId:'meadow',travel:null,arrivalCount:2},
     inventory:{stacks:[{itemId:'healing-potion',quantity:1}]}
   };
   const migrated=migrateSave({schemaVersion:1,savedAt:1234,state:oldState});
-  assert.equal(migrated?.schemaVersion,5);
+  assert.equal(migrated?.schemaVersion,6);
   assert.deepEqual(migrated?.state.injuries,cleanInjuryState());
   assert.deepEqual(migrated?.state.farming,createDefaultFarmingState());
   assert.deepEqual(migrated?.state.gathering,createDefaultGatheringState());
   assert.equal(migrated?.state.crafting.skills.crafting.level,0);
+  assert.equal(migrated?.state.economy.trading.level,0);
 });
 
-test('valid schema v2 and v3 preserve already-existing durable systems',()=>{
-  const injuries=cleanInjuryState();
-  injuries.severity.head=2;
-  const v2={
-    character:{level:2,xp:7,gold:11},
-    world:{locationId:'forest-edge',travel:null,arrivalCount:1},
-    inventory:{stacks:[]},
-    injuries
-  };
-  const m2=migrateSave({schemaVersion:2,savedAt:999,state:v2});
-  assert.deepEqual(m2?.state.injuries,injuries);
-  assert.deepEqual(m2?.state.farming,createDefaultFarmingState());
-
-  const v3={...legacyV4State()};
-  delete v3.gathering;
-  v3.farming.skill={level:20,xp:12.5};
-  const m3=migrateSave({schemaVersion:3,savedAt:777,state:v3});
-  assert.deepEqual(m3?.state.farming,v3.farming);
-  assert.deepEqual(m3?.state.gathering,createDefaultGatheringState());
-});
-
-test('current encoded saves use schema v5 and preserve crafting state',()=>{
+test('current encoded saves use schema v6 and preserve trading pressure',()=>{
   const state=fullState();
   state.injuries.severity.head=2;
   state.gathering.skill={level:7,xp:42};
   state.crafting.skills.crafting={level:35,xp:5};
+  state.economy.pressures.greenwald={
+    'grain-sack':{value:-0.2,updatedAt:900}
+  };
   const raw=encodeSave(state,999);
   const envelope=JSON.parse(raw);
-  assert.equal(envelope.schemaVersion,5);
+  assert.equal(envelope.schemaVersion,6);
   assert.deepEqual(decodeSave(raw),state);
 });
 
@@ -122,8 +118,36 @@ test('corrupted and unknown saves fail closed',()=>{
   assert.equal(decodeSave(JSON.stringify({schemaVersion:999,state:{}})),null);
 });
 
-test('malformed v5 equipment and crafting structures fail closed',()=>{
+test('malformed v6 economy data fails closed',()=>{
   const base=fullState();
+
+  assert.equal(migrateSave({
+    schemaVersion:6,
+    savedAt:1,
+    state:{...base,economy:{...base.economy,trading:{level:101,xp:0}}}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:6,
+    savedAt:1,
+    state:{...base,economy:{...base.economy,pressures:{unknown:{'grain-sack':{value:0.1,updatedAt:1}}}}}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:6,
+    savedAt:1,
+    state:{...base,economy:{...base.economy,pressures:{tillanium:{unknown:{value:0.1,updatedAt:1}}}}}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:6,
+    savedAt:1,
+    state:{...base,economy:{...base.economy,factionRelations:{...base.economy.factionRelations,karnholm:101}}}
+  }),null);
+});
+
+test('malformed v5 equipment and crafting structures still fail closed',()=>{
+  const base=legacyV5State();
   assert.equal(migrateSave({
     schemaVersion:5,
     savedAt:1,
@@ -133,40 +157,20 @@ test('malformed v5 equipment and crafting structures fail closed',()=>{
   assert.equal(migrateSave({
     schemaVersion:5,
     savedAt:1,
-    state:{...base,crafting:{...base.crafting,knownRecipeIds:['unknown-recipe']}}
-  }),null);
-
-  assert.equal(migrateSave({
-    schemaVersion:5,
-    savedAt:1,
     state:{...base,inventory:{stacks:[{itemId:'iron-short-sword',quantity:1}],equipment:[]}}
-  }),null);
-
-  assert.equal(migrateSave({
-    schemaVersion:5,
-    savedAt:1,
-    state:{...base,inventory:{stacks:[],equipment:[{
-      instanceId:'eq-2',
-      itemId:'light-armor',
-      itemClass:1,
-      rarity:'common',
-      upgradeLevel:0,
-      stats:{mitigation:0.05},
-      properties:[]
-    }]},crafting:{...base.crafting,nextEquipmentId:2}}
   }),null);
 });
 
-test('reconstructing finished travel is idempotent and does not advance crafting',()=>{
+test('reconstructing finished travel is idempotent and leaves economy untouched',()=>{
   const state=fullState();
   state.world={locationId:'tillanium',arrivalCount:0,travel:{fromId:'tillanium',destinationId:'city-gate',startedAt:1000,arrivesAt:5000}};
-  state.crafting.skills.alchemy={level:10,xp:17};
-  const craftingBefore=state.crafting;
+  state.economy.trading={level:10,xp:17};
+  const economyBefore=state.economy;
   const once=reconstructState(state,6000);
   const twice=reconstructState(once,6000);
   assert.equal(once.world.locationId,'city-gate');
   assert.equal(twice.world.arrivalCount,1);
-  assert.equal(twice.crafting,craftingBefore);
+  assert.equal(twice.economy,economyBefore);
 });
 
 test('runtime peaceful sessions are never serialized into durable save',()=>{

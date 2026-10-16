@@ -6,6 +6,7 @@ import { reconstructRecovery } from './injuries/defeat.js';
 import type { FarmingState } from './peaceful/farming/types.js';
 import type { GatheringState } from './peaceful/gathering/types.js';
 import type { CraftingState } from './crafting/types.js';
+import type { EconomyState } from './economy/types.js';
 
 export interface CharacterPersistentState {
   level:number;
@@ -31,14 +32,13 @@ export interface LegacyGameStateV4 extends LegacyGameStateV3 {
   gathering:GatheringState;
 }
 
-export interface GameState {
-  character:CharacterPersistentState;
-  world:WorldState;
+export interface LegacyGameStateV5 extends LegacyGameStateV4 {
   inventory:InventoryState;
-  injuries:InjuryState;
-  farming:FarmingState;
-  gathering:GatheringState;
   crafting:CraftingState;
+}
+
+export interface GameState extends LegacyGameStateV5 {
+  economy:EconomyState;
 }
 
 export function reconstructState(state:GameState,now:number):GameState{

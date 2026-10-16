@@ -10,6 +10,8 @@ import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gat
 import type { GatheringState } from '../game-core/peaceful/gathering/types.js';
 import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
 import type { CraftingState } from '../game-core/crafting/types.js';
+import { createDefaultEconomyState } from '../game-core/economy/merchant.js';
+import type { EconomyState } from '../game-core/economy/types.js';
 import { createLegacyEquipmentInstance,type EquipmentInstance } from '../game-core/items/equipment.js';
 import type { InventoryState,LegacyInventoryState } from '../game-core/items/inventory.js';
 import type {
@@ -17,14 +19,19 @@ import type {
   LegacyGameStateV1,
   LegacyGameStateV2,
   LegacyGameStateV3,
-  LegacyGameStateV4
+  LegacyGameStateV4,
+  LegacyGameStateV5
 } from '../game-core/game-state.js';
 import { cropDefs } from '../content/farming.js';
 import { gatheringResourceDefs } from '../content/gathering.js';
 import { locations } from '../content/locations.js';
+import { cities } from '../content/cities.js';
 import { itemDefs } from '../content/items.js';
 import { craftingRecipes,starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV5 } from './schema.js';
+import { basePrices } from '../content/economy.js';
+import type { SaveEnvelopeV6 } from './schema.js';
+
+const FACTION_IDS=['karnholm','ellaria','rivermark','greenwald'] as const;
 
 function isObject(value:unknown):value is Record<string,unknown>{
   return Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
@@ -53,7 +60,7 @@ function looksLikeTravel(value:unknown):boolean{
 function looksLikeWorld(value:unknown):boolean{
   if(!isObject(value))return false;
   return typeof value.locationId==='string'
-    &&value.locationId.length>0
+    &&Boolean(locations[value.locationId])
     &&Number.isInteger(value.arrivalCount)
     &&(value.arrivalCount as number)>=0
     &&looksLikeTravel(value.travel);
@@ -183,13 +190,48 @@ function looksLikeCraftingState(value:unknown):value is CraftingState{
   if(new Set(value.knownRecipeIds).size!==value.knownRecipeIds.length)return false;
   return Number.isInteger(value.nextEquipmentId)&&(value.nextEquipmentId as number)>=1;
 }
+function looksLikePressureEntry(value:unknown):boolean{
+  return isObject(value)
+    &&isFiniteNumber(value.value)
+    &&value.value>=-0.25
+    &&value.value<=1.5
+    &&isFiniteNumber(value.updatedAt)
+    &&value.updatedAt>=0;
+}
+function looksLikeEconomyState(value:unknown):value is EconomyState{
+  if(!isObject(value)||!looksLikeSkillState(value.trading))return false;
+  if(!isObject(value.pressures)||!isObject(value.factionRelations))return false;
+
+  for(const [cityId,market] of Object.entries(value.pressures)){
+    if(!cities[cityId]||!isObject(market))return false;
+    for(const [itemId,entry] of Object.entries(market)){
+      if(!basePrices[itemId]||!looksLikePressureEntry(entry))return false;
+    }
+  }
+
+  const relationKeys=Object.keys(value.factionRelations);
+  if(relationKeys.length!==FACTION_IDS.length)return false;
+  for(const factionId of FACTION_IDS){
+    const relation=value.factionRelations[factionId];
+    if(!isFiniteNumber(relation)||relation<-100||relation>100)return false;
+  }
+  return relationKeys.every(id=>(FACTION_IDS as readonly string[]).includes(id));
+}
 function looksLikeLegacyStateV3(value:unknown):value is LegacyGameStateV3{
   return looksLikeLegacyStateV2(value)&&isObject(value)&&looksLikeFarmingState(value.farming);
 }
 function looksLikeLegacyStateV4(value:unknown):value is LegacyGameStateV4{
   return looksLikeLegacyStateV3(value)&&isObject(value)&&looksLikeGatheringState(value.gathering);
 }
-function looksLikeGameState(value:unknown):value is GameState{
+function validEquipmentCounter(inventory:InventoryState,crafting:CraftingState):boolean{
+  let highest=0;
+  for(const instance of inventory.equipment??[]){
+    const match=/^eq-(\d+)$/.exec(instance.instanceId);
+    if(match)highest=Math.max(highest,Number(match[1]));
+  }
+  return crafting.nextEquipmentId>highest;
+}
+function looksLikeLegacyStateV5(value:unknown):value is LegacyGameStateV5{
   if(!isObject(value))return false;
   if(!looksLikeCharacter(value.character)
     ||!looksLikeWorld(value.world)
@@ -198,13 +240,12 @@ function looksLikeGameState(value:unknown):value is GameState{
     ||!looksLikeFarmingState(value.farming)
     ||!looksLikeGatheringState(value.gathering)
     ||!looksLikeCraftingState(value.crafting))return false;
-
-  let highest=0;
-  for(const instance of value.inventory.equipment??[]){
-    const match=/^eq-(\d+)$/.exec(instance.instanceId);
-    if(match)highest=Math.max(highest,Number(match[1]));
-  }
-  return value.crafting.nextEquipmentId>highest;
+  return validEquipmentCounter(value.inventory as InventoryState,value.crafting as CraftingState);
+}
+function looksLikeGameState(value:unknown):value is GameState{
+  return looksLikeLegacyStateV5(value)
+    &&isObject(value)
+    &&looksLikeEconomyState(value.economy);
 }
 
 export function upgradeLegacyInventory(
@@ -232,7 +273,7 @@ export function upgradeLegacyInventory(
 
 function withCrafting(
   legacy:LegacyGameStateV4
-):GameState{
+):LegacyGameStateV5{
   const upgraded=upgradeLegacyInventory(legacy.inventory);
   return {
     ...legacy,
@@ -244,7 +285,11 @@ function withCrafting(
   };
 }
 
-export function migrateSave(value:unknown):SaveEnvelopeV5|null{
+function withEconomy(legacy:LegacyGameStateV5):GameState{
+  return {...legacy,economy:createDefaultEconomyState()};
+}
+
+export function migrateSave(value:unknown):SaveEnvelopeV6|null{
   if(!isObject(value)||!isFiniteNumber(value.savedAt))return null;
 
   if(value.schemaVersion===1&&looksLikeLegacyStateV1(value.state)){
@@ -254,7 +299,7 @@ export function migrateSave(value:unknown):SaveEnvelopeV5|null{
       farming:createDefaultFarmingState(),
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:5,savedAt:value.savedAt,state:withCrafting(v4)};
+    return {schemaVersion:6,savedAt:value.savedAt,state:withEconomy(withCrafting(v4))};
   }
   if(value.schemaVersion===2&&looksLikeLegacyStateV2(value.state)){
     const v4:LegacyGameStateV4={
@@ -262,20 +307,23 @@ export function migrateSave(value:unknown):SaveEnvelopeV5|null{
       farming:createDefaultFarmingState(),
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:5,savedAt:value.savedAt,state:withCrafting(v4)};
+    return {schemaVersion:6,savedAt:value.savedAt,state:withEconomy(withCrafting(v4))};
   }
   if(value.schemaVersion===3&&looksLikeLegacyStateV3(value.state)){
     const v4:LegacyGameStateV4={
       ...value.state,
       gathering:createDefaultGatheringState()
     };
-    return {schemaVersion:5,savedAt:value.savedAt,state:withCrafting(v4)};
+    return {schemaVersion:6,savedAt:value.savedAt,state:withEconomy(withCrafting(v4))};
   }
   if(value.schemaVersion===4&&looksLikeLegacyStateV4(value.state)){
-    return {schemaVersion:5,savedAt:value.savedAt,state:withCrafting(value.state)};
+    return {schemaVersion:6,savedAt:value.savedAt,state:withEconomy(withCrafting(value.state))};
   }
-  if(value.schemaVersion===5&&looksLikeGameState(value.state)){
-    return {schemaVersion:5,savedAt:value.savedAt,state:value.state};
+  if(value.schemaVersion===5&&looksLikeLegacyStateV5(value.state)){
+    return {schemaVersion:6,savedAt:value.savedAt,state:withEconomy(value.state)};
+  }
+  if(value.schemaVersion===6&&looksLikeGameState(value.state)){
+    return {schemaVersion:6,savedAt:value.savedAt,state:value.state};
   }
   return null;
 }

@@ -14,6 +14,8 @@ import {
 } from '../game-core/items/inventory.js';
 import { itemDefs } from '../content/items.js';
 import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
+import { createDefaultEconomyState } from '../game-core/economy/merchant.js';
+import type { EconomyState } from '../game-core/economy/types.js';
 import type { CraftingState } from '../game-core/crafting/types.js';
 import { starterRecipeIds } from '../content/crafting.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -32,6 +34,7 @@ export interface UiGameState {
   farming: FarmingState;
   gathering: GatheringState;
   crafting: CraftingState;
+  economy: EconomyState;
 }
 
 export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'inventory';
@@ -69,7 +72,8 @@ export function createNewGame(): UiGameState {
     injuries:cleanInjuryState(),
     farming:createDefaultFarmingState(),
     gathering:createDefaultGatheringState(),
-    crafting:createDefaultCraftingState(starterRecipeIds)
+    crafting:createDefaultCraftingState(starterRecipeIds),
+    economy:createDefaultEconomyState()
   };
 }
 

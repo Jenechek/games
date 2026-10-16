@@ -3,7 +3,8 @@ import type {
   LegacyGameStateV1,
   LegacyGameStateV2,
   LegacyGameStateV3,
-  LegacyGameStateV4
+  LegacyGameStateV4,
+  LegacyGameStateV5
 } from '../game-core/game-state.js';
 
 export interface SaveEnvelopeV1 {
@@ -29,6 +30,11 @@ export interface SaveEnvelopeV4 {
 export interface SaveEnvelopeV5 {
   schemaVersion:5;
   savedAt:number;
+  state:LegacyGameStateV5;
+}
+export interface SaveEnvelopeV6 {
+  schemaVersion:6;
+  savedAt:number;
   state:GameState;
 }
 
@@ -37,4 +43,5 @@ export type SaveEnvelope=
   |SaveEnvelopeV2
   |SaveEnvelopeV3
   |SaveEnvelopeV4
-  |SaveEnvelopeV5;
+  |SaveEnvelopeV5
+  |SaveEnvelopeV6;

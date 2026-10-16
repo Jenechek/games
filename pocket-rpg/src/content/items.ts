@@ -64,6 +64,12 @@ export const itemDefs:Record<string,ItemDefinition>={
   'medium-injury-medicine':{id:'medium-injury-medicine',label:'Среднее средство от травм',weight:0.3,rarity:'quality'},
   'strong-injury-medicine':{id:'strong-injury-medicine',label:'Сильное средство от травм',weight:0.4,rarity:'rare'},
   'basic-fishing-rod':{id:'basic-fishing-rod',label:'Простая удочка',weight:1.2,rarity:'common',requirements:{skills:{fishing:0}},stats:{fishingSpeed:1,rareChance:0}},
+  worms:{id:'worms',label:'Черви',weight:0.1,rarity:'common'},
+  spinner:{id:'spinner',label:'Блесна',weight:0.2,rarity:'common'},
+  'iron-ingot':{id:'iron-ingot',label:'Железный слиток',weight:2,rarity:'common'},
+  'arcane-ink':{id:'arcane-ink',label:'Арканные чернила',weight:0.5,rarity:'common'},
+  'dried-fish':{id:'dried-fish',label:'Вяленая рыба',weight:1,rarity:'common'},
+  'grain-sack':{id:'grain-sack',label:'Мешок зерна',weight:2,rarity:'common'},
   ...cropItemDefs,
   ...gatheringItemDefs,
   ...fishItemDefs

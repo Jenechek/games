@@ -3,19 +3,43 @@ import type {
   LegacyGameStateV1,
   LegacyGameStateV2,
   LegacyGameStateV3,
-  LegacyGameStateV4
+  LegacyGameStateV4,
+  LegacyGameStateV5
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
 import { createDefaultGatheringState } from '../game-core/peaceful/gathering/gathering.js';
 import { createDefaultCraftingState } from '../game-core/crafting/crafting.js';
+import { createDefaultEconomyState } from '../game-core/economy/merchant.js';
 import { starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV5 } from './schema.js';
+import type { SaveEnvelopeV6 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
-type SaveInput=GameState|LegacyGameStateV4|LegacyGameStateV3|LegacyGameStateV2|LegacyGameStateV1;
+type SaveInput=
+  |GameState
+  |LegacyGameStateV5
+  |LegacyGameStateV4
+  |LegacyGameStateV3
+  |LegacyGameStateV2
+  |LegacyGameStateV1;
 
 function normalizeState(state:SaveInput):GameState{
+  if('economy' in state){
+    return {
+      character:state.character,
+      world:state.world,
+      inventory:{
+        stacks:state.inventory.stacks.map(stack=>({...stack})),
+        equipment:[...(state.inventory.equipment??[])]
+      },
+      injuries:state.injuries,
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting,
+      economy:state.economy
+    };
+  }
+
   if('crafting' in state){
     return {
       character:state.character,
@@ -27,7 +51,8 @@ function normalizeState(state:SaveInput):GameState{
       injuries:state.injuries,
       farming:state.farming,
       gathering:state.gathering,
-      crafting:state.crafting
+      crafting:state.crafting,
+      economy:createDefaultEconomyState()
     };
   }
 
@@ -42,18 +67,20 @@ function normalizeState(state:SaveInput):GameState{
     crafting:{
       ...createDefaultCraftingState(starterRecipeIds),
       nextEquipmentId:upgraded.nextEquipmentId
-    }
+    },
+    economy:createDefaultEconomyState()
   };
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV5={
-    schemaVersion:5,
+  const envelope:SaveEnvelopeV6={
+    schemaVersion:6,
     savedAt,
     state:normalizeState(state)
   };
   return JSON.stringify(envelope);
 }
+
 export function decodeSave(raw:string):GameState|null{
   try{return migrateSave(JSON.parse(raw))?.state??null;}catch{return null;}
 }

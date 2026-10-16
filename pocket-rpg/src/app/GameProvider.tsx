@@ -5,6 +5,7 @@ import {
   canPerformAction,
   canStartGatheringAction,
   canStartFarmingAction,
+  canStartFishingAction,
   canStartFishingWithFarming,
   createNewGame,
   currentLoadRatio,
@@ -242,8 +243,18 @@ export function GameProvider({children}:{children:React.ReactNode}){
       }
 
       if(n.fishing && !n.farmingWork && !n.gatheringSession && canPerformAction(n.injuries,'fishing',now)){
-        const f=advanceFishing(n,now,rng.current,n.world.locationId,n.attributes.luck);
+        const f=advanceFishing(
+          n,
+          now,
+          rng.current,
+          n.world.locationId,
+          n.attributes.luck,
+          inventory=>currentLoadRatio(inventory,n.attributes)<1.2
+        );
         n={...n,...f};
+        if(n.fishing===null){
+          n={...n,log:[...n.log,'Рыбалка остановлена: перегруз достиг 120%.']};
+        }
       }
       return n;
     }),250);
@@ -324,12 +335,13 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     startFishingCmd(){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'fishing',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя рыбачить: персонаж восстанавливается.']};
-        if(!canStartFishingWithFarming(s.farmingWork))return{...s,log:[...s.log,'Сначала остановите работу на поле.']};
+        const now=Date.now();
         const ratio=currentLoadRatio(s.inventory,s.attributes);
-        if(ratio>=1.2)return{...s,log:[...s.log,'Рыбалка недоступна при перегрузе 120% и выше.']};
+        if(!canStartFishingAction(s.injuries,Boolean(s.combat),Boolean(s.farmingWork),ratio,now)){
+          return{...s,log:[...s.log,'Сейчас нельзя рыбачить.']};
+        }
         return locations[s.world.locationId]?.fishing
-          ? {...startFishing(s,'worms',Date.now(),ratio),gatheringSession:null} as RuntimeState
+          ? {...startFishing(s,'worms',now,ratio),gatheringSession:null} as RuntimeState
           : s;
       });
     },

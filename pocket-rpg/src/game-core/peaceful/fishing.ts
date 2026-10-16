@@ -13,9 +13,19 @@ function chooseFish(locationId:string,baitId:string,rng:SeededRng,luck:number):s
   for(let i=0;i<pool.length;i++){roll-=weights[i];if(roll<=0)return pool[i];}
   return pool[pool.length-1];
 }
-export function advanceFishing<T extends FishingGameState>(state:T,now:number,rng:SeededRng,locationId:string,luck:number):T {
+export function advanceFishing<T extends FishingGameState>(
+  state:T,
+  now:number,
+  rng:SeededRng,
+  locationId:string,
+  luck:number,
+  canContinue?:(inventory:InventoryState)=>boolean
+):T {
   if(!state.fishing) return state;
   let out:any={...state,inventory:{stacks:state.inventory.stacks.map(x=>({...x}))},fishing:{...state.fishing}};
-  while(out.fishing && now>=out.fishing.nextAt){const fishId=chooseFish(locationId,out.fishing.baitId,rng,luck);if(!fishId)break;const stack=out.inventory.stacks.find((x:any)=>x.itemId===fishId);if(stack)stack.quantity+=1;else out.inventory.stacks.push({itemId:fishId,quantity:1});out.fishingXp+=fishDefs[fishId].xp;out.fishing.nextAt+=out.fishing.cycleMs;}
+  while(out.fishing && now>=out.fishing.nextAt){const fishId=chooseFish(locationId,out.fishing.baitId,rng,luck);if(!fishId)break;const stack=out.inventory.stacks.find((x:any)=>x.itemId===fishId);if(stack)stack.quantity+=1;else out.inventory.stacks.push({itemId:fishId,quantity:1});out.fishingXp+=fishDefs[fishId].xp;
+    if(canContinue&&!canContinue(out.inventory)){out.fishing=null;break;}
+    out.fishing.nextAt+=out.fishing.cycleMs;
+  }
   return out;
 }

@@ -116,6 +116,19 @@ export function canStartGatheringAction(
   return gatheringStartReason(injuries,inCombat,hasFarmingWork,loadRatioValue,now)===null;
 }
 
+export function canStartFishingAction(
+  injuries: InjuryState,
+  inCombat: boolean,
+  hasFarmingWork: boolean,
+  loadRatioValue: number,
+  now: number
+): boolean {
+  return !inCombat
+    && !hasFarmingWork
+    && loadRatioValue < 1.2
+    && canPerformAction(injuries,'fishing',now);
+}
+
 export function canStartFarmingAction(
   injuries: InjuryState,
   inCombat: boolean,

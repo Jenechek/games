@@ -117,7 +117,8 @@ import type { PlayerClassId } from '../game-core/classes/types';
 import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
 import {
-  isMagicSpellUnlocked,
+  canCastMagicSpell,
+  chooseMageAutoSpellId,
   magicSpells,
   type MagicSpellId
 } from '../content/magic';
@@ -314,14 +315,14 @@ function magicSpellAction(
 ):CombatAction|null{
   if(state.classState.classId!=='mage'||!state.combat)return null;
   const spell=magicSpells[spellId];
-  if(!isMagicSpellUnlocked(
-    spell,
-    state.skillProgression.magic.level
-  ))return null;
-  if(state.combat.player.mana<spell.manaCost)return null;
+  if(!canCastMagicSpell(spell,{
+    magicLevel:state.skillProgression.magic.level,
+    mana:state.combat.player.mana,
+    hp:state.combat.player.hp,
+    maxHp:state.combat.player.maxHp
+  }))return null;
 
   if(spell.effect.kind==='heal'){
-    if(state.combat.player.hp>=state.combat.player.maxHp)return null;
     return {
       type:'magic',
       manaCost:spell.manaCost,
@@ -356,27 +357,16 @@ function magicSpellAction(
 
 function chooseAutoMageSpell(state:RuntimeState):MagicSpellId|null{
   if(state.classState.classId!=='mage'||!state.combat)return null;
-
-  const hpRatio=state.combat.player.hp/state.combat.player.maxHp;
-  if(
-    hpRatio<=0.4
-    &&magicSpellAction(state,'arcane-mend')
-  )return 'arcane-mend';
-
-  const ward=state.combat.player.effects?.find(effect=>effect.id==='ward');
-  if(
-    hpRatio<=0.75
-    &&(!ward||ward.roundsRemaining<=1)
-    &&magicSpellAction(state,'arcane-ward')
-  )return 'arcane-ward';
-
   const focus=state.combat.player.effects?.find(effect=>effect.id==='focus');
-  if(
-    (!focus||focus.roundsRemaining<=1)
-    &&magicSpellAction(state,'arcane-focus')
-  )return 'arcane-focus';
-
-  return null;
+  const ward=state.combat.player.effects?.find(effect=>effect.id==='ward');
+  return chooseMageAutoSpellId({
+    magicLevel:state.skillProgression.magic.level,
+    mana:state.combat.player.mana,
+    hp:state.combat.player.hp,
+    maxHp:state.combat.player.maxHp,
+    focusRoundsRemaining:focus?.roundsRemaining,
+    wardRoundsRemaining:ward?.roundsRemaining
+  });
 }
 
 function stateLoadRatio(

@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import {
   COMBAT_DOMAIN_XP_WEIGHTS,
   SHORT_SWORD_SKILL_CHAIN,
+  applyArmorActionProgression,
+  applyBlockingActionProgression,
   applyShortSwordAttackProgression,
   applyWeaponAttackProgression,
+  armorMitigationMultiplier,
+  blockingChanceMultiplier,
   shortSwordDamageMultiplier,
   weaponDamageMultiplier
 } from '../dist/game-core/combat/progression.js';
@@ -85,4 +89,80 @@ test('declared short sword item path routes through the same progression chain',
   );
   assert.ok(Math.abs(next.weapons.xp-20)<1e-10);
   assert.ok(Math.abs(next['short-sword'].xp-89.8425)<1e-10);
+});
+
+
+test('light armor action progression uses eighty percent weight across its hierarchy',()=>{
+  const start=createDefaultSkillProgression();
+  const next=applyArmorActionProgression(
+    start,
+    ['armor','body-armor','light-armor'],
+    true
+  );
+  assert.ok(Math.abs(next.armor.xp-16)<1e-10);
+  assert.ok(Math.abs(next['body-armor'].xp-26.4)<1e-10);
+  assert.ok(Math.abs(next['light-armor'].xp-43.56)<1e-10);
+  assert.deepEqual(next['heavy-armor'],start['heavy-armor']);
+});
+
+test('heavy armor progression uses its own child branch',()=>{
+  const next=applyArmorActionProgression(
+    createDefaultSkillProgression(),
+    ['armor','body-armor','heavy-armor'],
+    true
+  );
+  assert.ok(Math.abs(next.armor.xp-16)<1e-10);
+  assert.ok(Math.abs(next['body-armor'].xp-26.4)<1e-10);
+  assert.ok(Math.abs(next['heavy-armor'].xp-43.56)<1e-10);
+  assert.deepEqual(next['light-armor'],{level:0,xp:0});
+});
+
+test('failed armor action receives one quarter baseline before eighty percent weight',()=>{
+  const next=applyArmorActionProgression(
+    createDefaultSkillProgression(),
+    ['armor','body-armor','light-armor'],
+    false
+  );
+  assert.ok(Math.abs(next.armor.xp-4)<1e-10);
+  assert.ok(Math.abs(next['body-armor'].xp-6.6)<1e-10);
+  assert.ok(Math.abs(next['light-armor'].xp-10.89)<1e-10);
+});
+
+test('equipped shield progression uses seventy percent blocking weight',()=>{
+  const success=applyBlockingActionProgression(
+    createDefaultSkillProgression(),
+    ['shields'],
+    true
+  );
+  const failure=applyBlockingActionProgression(
+    createDefaultSkillProgression(),
+    ['shields'],
+    false
+  );
+  assert.ok(Math.abs(success.shields.xp-14)<1e-10);
+  assert.ok(Math.abs(failure.shields.xp-3.5)<1e-10);
+});
+
+test('armor and shield skill bonuses multiply their primary effects',()=>{
+  const progression=createDefaultSkillProgression();
+  progression.armor={level:100,xp:0};
+  progression['body-armor']={level:100,xp:0};
+  progression['light-armor']={level:100,xp:0};
+  progression.shields={level:100,xp:0};
+
+  assert.ok(Math.abs(
+    armorMitigationMultiplier(
+      progression,
+      ['armor','body-armor','light-armor']
+    )-(1.2**3)
+  )<1e-10);
+  assert.ok(Math.abs(
+    blockingChanceMultiplier(progression,['shields'])-1.2
+  )<1e-10);
+});
+
+test('missing armor or shield path grants no defensive progression',()=>{
+  const start=createDefaultSkillProgression();
+  assert.equal(applyArmorActionProgression(start,undefined,true),start);
+  assert.equal(applyBlockingActionProgression(start,undefined,true),start);
 });

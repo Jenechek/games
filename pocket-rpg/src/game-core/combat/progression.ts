@@ -167,3 +167,33 @@ export function applyBlockingChanceSkill(
   return Math.max(0,baseBlockChance)
     *blockingChanceMultiplier(progression,skillPath);
 }
+
+
+export function magicEffectMultiplier(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return combatSkillEffectMultiplier(progression,skillPath);
+}
+
+export function applyMagicActionProgression(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined,
+  success:boolean
+):SkillProgressionState{
+  return applyCombatDomainProgression(
+    progression,
+    skillPath,
+    success,
+    COMBAT_DOMAIN_XP_WEIGHTS.magic
+  );
+}
+
+export function applyMagicEffectSkill(
+  baseMagnitude:number,
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return Math.max(0,baseMagnitude)
+    *magicEffectMultiplier(progression,skillPath);
+}

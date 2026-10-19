@@ -86,3 +86,39 @@ test('summons do not intercept attacks that miss or are blocked before damage',(
   assert.equal(result.state.player.hp,100);
   assert.equal(result.state.summons[0].hp,90);
 });
+
+
+test('combat log exposes successful player attack outcome for progression',()=>{
+  const result=resolveRound(
+    baseCombat(),
+    {player:{main:{type:'attack'}},enemy:{main:{type:'wait'}}},
+    {chance:()=>true}
+  );
+  const attack=result.log.find(x=>x.phase==='player-main');
+  assert.equal(attack?.action,'attack');
+  assert.equal(attack?.success,true);
+  assert.ok((attack?.damage??0)>0);
+});
+
+test('combat log marks missed player attack as failed action',()=>{
+  const result=resolveRound(
+    baseCombat(),
+    {player:{main:{type:'attack'}},enemy:{main:{type:'wait'}}},
+    {chance:()=>false}
+  );
+  const attack=result.log.find(x=>x.phase==='player-main');
+  assert.equal(attack?.action,'attack');
+  assert.equal(attack?.success,false);
+  assert.equal(attack?.damage,0);
+});
+
+test('stunned player produces no weapon action log entry',()=>{
+  const state=baseCombat();
+  state.player.stunned=true;
+  const result=resolveRound(
+    state,
+    {player:{main:{type:'attack'}},enemy:{main:{type:'wait'}}},
+    {chance:()=>true}
+  );
+  assert.equal(result.log.some(x=>x.phase==='player-main'),false);
+});

@@ -148,3 +148,22 @@ export function applyBlockingActionProgression(
     COMBAT_DOMAIN_XP_WEIGHTS.blocking
   );
 }
+
+
+export function applyArmorMitigationSkill(
+  baseMitigation:number,
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return Math.max(0,baseMitigation)
+    *armorMitigationMultiplier(progression,skillPath);
+}
+
+export function applyBlockingChanceSkill(
+  baseBlockChance:number,
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return Math.max(0,baseBlockChance)
+    *blockingChanceMultiplier(progression,skillPath);
+}

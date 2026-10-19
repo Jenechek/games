@@ -18,6 +18,7 @@ import {
   weaponDamageMultiplier
 } from '../dist/game-core/combat/progression.js';
 import {createDefaultSkillProgression} from '../dist/game-core/progression/skill-progress.js';
+import {ARCANE_FOCUS_SKILL_PATH,arcaneFocusSpell} from '../dist/content/magic.js';
 
 test('agreed combat domain weights remain explicit',()=>{
   assert.deepEqual(COMBAT_DOMAIN_XP_WEIGHTS,{
@@ -265,4 +266,15 @@ test('magic progression does not leak into weapon defense or peaceful skills',()
   ]){
     assert.deepEqual(next[id],start[id]);
   }
+});
+
+
+test('authored Arcane Focus content declares the expected magic path and cost',()=>{
+  assert.deepEqual(ARCANE_FOCUS_SKILL_PATH,[
+    'magic','arcane','concentration','arcane-focus'
+  ]);
+  assert.equal(arcaneFocusSpell.manaCost,20);
+  assert.equal(arcaneFocusSpell.baseMagnitude,0.08);
+  assert.equal(arcaneFocusSpell.durationRounds,3);
+  assert.deepEqual(arcaneFocusSpell.skillPath,ARCANE_FOCUS_SKILL_PATH);
 });

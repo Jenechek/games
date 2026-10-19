@@ -56,3 +56,12 @@ test('weapon XP can level deeper nodes earlier because depth multiplier is stron
   assert.equal(progression.swords.level,0);
   assert.equal(progression['short-sword'].level,1);
 });
+
+
+test('combat weapon action does not leak XP into peaceful skills',()=>{
+  const start=createDefaultSkillProgression();
+  const next=applyShortSwordAttackProgression(start,true);
+  for(const id of ['fishing','farming','gathering','crafting','alchemy','trading','diplomacy']){
+    assert.deepEqual(next[id],start[id]);
+  }
+});

@@ -4,7 +4,9 @@ import {
   COMBAT_DOMAIN_XP_WEIGHTS,
   SHORT_SWORD_SKILL_CHAIN,
   applyArmorActionProgression,
+  applyArmorMitigationSkill,
   applyBlockingActionProgression,
+  applyBlockingChanceSkill,
   applyShortSwordAttackProgression,
   applyWeaponAttackProgression,
   armorMitigationMultiplier,
@@ -165,4 +167,28 @@ test('missing armor or shield path grants no defensive progression',()=>{
   const start=createDefaultSkillProgression();
   assert.equal(applyArmorActionProgression(start,undefined,true),start);
   assert.equal(applyBlockingActionProgression(start,undefined,true),start);
+});
+
+
+test('defensive skill transforms scale only their primary stat',()=>{
+  const progression=createDefaultSkillProgression();
+  progression.armor={level:100,xp:0};
+  progression['body-armor']={level:100,xp:0};
+  progression['light-armor']={level:100,xp:0};
+  progression.shields={level:100,xp:0};
+
+  assert.ok(Math.abs(
+    applyArmorMitigationSkill(
+      0.05,
+      progression,
+      ['armor','body-armor','light-armor']
+    )-(0.05*(1.2**3))
+  )<1e-10);
+  assert.ok(Math.abs(
+    applyBlockingChanceSkill(
+      0.12,
+      progression,
+      ['shields']
+    )-0.144
+  )<1e-10);
 });

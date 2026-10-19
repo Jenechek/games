@@ -44,7 +44,8 @@ import type {
   GatheringSession
 } from '../game-core/peaceful/gathering/types';
 import { gatheringResourceDefs } from '../content/gathering';
-import { applyBuyPressure, applySellProgress } from '../game-core/economy/merchant';
+import { cropDefs } from '../content/farming';
+import { applyBuyPressure, applySellProgress, tradingXpForSale } from '../game-core/economy/merchant';
 import { IndexedDbSaveStore } from '../storage/indexed-db';
 import { reconstructState } from '../game-core/game-state';
 import { applyDefeatConsequences } from '../game-core/injuries/defeat';
@@ -81,6 +82,11 @@ import {
   UNIVERSITY_UNLOCK_LEVEL,
   startRetraining
 } from '../game-core/university/retraining';
+import {
+  addCharacterXp,
+  combatCharacterXp,
+  type CharacterXpSource
+} from '../game-core/progression/character';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -150,6 +156,30 @@ function initial():RuntimeState {
   };
 }
 
+function awardCharacterXp(
+  state:RuntimeState,
+  amount:number,
+  source:CharacterXpSource
+):RuntimeState{
+  if(!(amount>0))return state;
+  const result=addCharacterXp({
+    level:state.level,
+    xp:state.xp,
+    attributes:state.attributes,
+    attributeXp:state.attributeXp
+  },amount,source);
+  return {
+    ...state,
+    level:result.state.level,
+    xp:result.state.xp,
+    attributes:result.state.attributes,
+    attributeXp:result.state.attributeXp,
+    log:result.levelsGained>0
+      ?[...state.log,`Новый уровень: ${result.state.level}. Характеристики повышены автоматически.`]
+      :state.log
+  };
+}
+
 function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
@@ -196,6 +226,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           xp:restored.character.xp,
           gold:restored.character.gold,
           attributes:restored.character.attributes,
+          attributeXp:restored.character.attributeXp,
           world:restored.world,
           inventory:restored.inventory,
           injuries:restored.injuries,
@@ -216,7 +247,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     if(!hydrated)return;
     const id=setTimeout(()=>{
       saveStore.current.save({
-        character:{level:state.level,xp:state.xp,gold:state.gold,attributes:state.attributes},
+        character:{level:state.level,xp:state.xp,gold:state.gold,attributes:state.attributes,attributeXp:state.attributeXp},
         world:state.world,
         inventory:state.inventory,
         injuries:state.injuries,
@@ -229,7 +260,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
@@ -237,22 +268,33 @@ export function GameProvider({children}:{children:React.ReactNode}){
       let n:RuntimeState={...s,...tickGame(s,now)};
 
       while(n.farmingWork && now>=n.farmingWork.nextAt){
-        const agriculture=locations[n.farmingWork.locationId]?.agriculture;
-        const stepAt=n.farmingWork.nextAt;
+        const workBefore=n.farmingWork;
+        const agriculture=locations[workBefore.locationId]?.agriculture;
+        const stepAt=workBefore.nextAt;
         const step=advanceFarmingWork(
           n.farming,
-          n.farmingWork,
+          workBefore,
           stepAt,
           rng.current,
           n.attributes.luck
         );
         const inventory=applyHarvestResults(n.inventory,step.harvests);
+        let farmingCharacterXp=0;
+        if(workBefore.type==='plant'){
+          farmingCharacterXp=(cropDefs[workBefore.cropId]?.harvestXp??0)*0.5*step.completedCells;
+        }else if(workBefore.type==='harvest'){
+          farmingCharacterXp=step.harvests.reduce(
+            (sum,result)=>sum+(cropDefs[result.cropId]?.harvestXp??0)*(result.rare?2:1),
+            0
+          );
+        }
         n={
           ...n,
           farming:step.state,
           farmingWork:step.work,
           inventory
         };
+        n=awardCharacterXp(n,farmingCharacterXp,'farming');
 
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
           n={
@@ -305,12 +347,18 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory,
           log:resultLog.length?[...n.log,...resultLog]:n.log
         };
+        const gatheringCharacterXp=gathered.results.reduce(
+          (sum,result)=>sum+(gatheringResourceDefs[result.resourceId]?.xp??0)*(result.rare?2:1),
+          0
+        );
+        n=awardCharacterXp(n,gatheringCharacterXp,'gathering');
         if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
           n={...n,gatheringSession:null,log:[...n.log,'Сбор остановлен: перегруз достиг 120%.']};
         }
       }
 
       if(n.fishing && !n.farmingWork && !n.gatheringSession && canPerformAction(n.injuries,'fishing',now)){
+        const fishingXpBefore=n.fishingXp;
         const f=advanceFishing(
           n,
           now,
@@ -320,6 +368,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           inventory=>currentLoadRatio(inventory,n.attributes)<1.2
         );
         n={...n,...f};
+        n=awardCharacterXp(n,Math.max(0,f.fishingXp-fishingXpBefore),'fishing');
         if(n.fishing===null){
           n={...n,log:[...n.log,'Рыбалка остановлена: перегруз достиг 120%.']};
         }
@@ -351,8 +400,13 @@ export function GameProvider({children}:{children:React.ReactNode}){
       const r=resolveRound(s.combat,{player:pc,enemy:ec},rng.current);
       if(r.state.player.hp<=0)return applyPlayerDefeat(s);
       if(r.state.enemy.hp<=0){
+        const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
         const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-        return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+        return awardCharacterXp(
+          {...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+          combatCharacterXp(enemyLevel),
+          'combat'
+        );
       }
       return{...s,combat:r.state,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
     }),5000);
@@ -381,8 +435,13 @@ export function GameProvider({children}:{children:React.ReactNode}){
         const r=resolveRound(s.combat,{player:{main:{type:'attack'},style:s.style},enemy:ec},rng.current);
         if(r.state.player.hp<=0)return applyPlayerDefeat(s);
         if(r.state.enemy.hp<=0){
+          const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
           const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-          return{...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]};
+          return awardCharacterXp(
+            {...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+            combatCharacterXp(enemyLevel),
+            'combat'
+          );
         }
         return{...s,combat:r.state,combatItemUsedRound:null};
       });
@@ -642,7 +701,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           );
           const inventory=removeInventoryStack(s.inventory,id,actualQuantity,itemClass);
           const economy=applySellProgress(s.economy,city.id,id,quote,now);
-          return{
+          return awardCharacterXp({
             ...s,
             gold:s.gold+quote.total,
             inventory,
@@ -651,7 +710,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Продано: ${def.label} ×${actualQuantity} за ${quote.total.toFixed(2)}.`]
-          };
+          },tradingXpForSale(quote.total),'trading');
         }catch{
           return{...s,log:[...s.log,'Этот предмет нельзя продать здесь.']};
         }
@@ -677,7 +736,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             equipment:(s.inventory.equipment??[]).filter(entry=>entry.instanceId!==instanceId)
           };
           const economy=applySellProgress(s.economy,city.id,instance.itemId,quote,now);
-          return{
+          return awardCharacterXp({
             ...s,
             gold:s.gold+quote.total,
             inventory,
@@ -686,7 +745,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Продано: ${itemDefs[instance.itemId]?.label??instance.itemId} за ${quote.total.toFixed(2)}.`]
-          };
+          },tradingXpForSale(quote.total),'trading');
         }catch{
           return{...s,log:[...s.log,'Эту экипировку нельзя продать здесь.']};
         }
@@ -728,7 +787,8 @@ export function GameProvider({children}:{children:React.ReactNode}){
             .filter(entry=>entry.rarity)
             .map(entry=>entry.rarity)
             .join(', ');
-          return{
+          const characterXp=result.results.reduce((sum,entry)=>sum+entry.xp,0);
+          return awardCharacterXp({
             ...s,
             crafting:result.state,
             inventory:result.inventory,
@@ -736,7 +796,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Создано: ${recipe.label} ×${result.results.length}${rarityText?` [${rarityText}]`:''}.`]
-          };
+          },characterXp,recipe.skillId==='alchemy'?'alchemy':'crafting');
         }catch{
           return{...s,log:[...s.log,`Не удалось создать: ${recipe.label}.`]};
         }
@@ -845,7 +905,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             now,
             rng:rng.current
           });
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -858,7 +918,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             log:[...s.log,result.success
               ?`Аудиенция прошла успешно. Отношения с ${factions[factionId].label}: +1.`
               :'Аудиенция не дала результата.']
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Новая аудиенция пока недоступна.']};
         }
@@ -880,7 +940,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             now,
             rng:rng.current
           });
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -893,7 +953,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             log:[...s.log,result.success
               ?`Медиация удалась. Отношения с ${factions[factionId].label}: +2.`
               :`Медиация провалилась. Отношения с ${factions[factionId].label}: −1.`]
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Медиация пока недоступна.']};
         }
@@ -929,7 +989,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             request.quantity,
             normalizedStackClass(stack)
           );
-          return{
+          return awardCharacterXp({
             ...s,
             diplomacy:result.state,
             economy:{
@@ -942,7 +1002,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             farmingWork:null,
             gatheringSession:null,
             log:[...s.log,`Поручение выполнено: +3 отношения, +${result.goldReward.toFixed(2)} золота.`]
-          };
+          },result.xp,'diplomacy');
         }catch{
           return{...s,log:[...s.log,'Поручение этого периода уже выполнено.']};
         }

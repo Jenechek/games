@@ -6,7 +6,8 @@ import type {
   LegacyGameStateV4,
   LegacyGameStateV5,
   LegacyGameStateV6,
-  LegacyGameStateV7
+  LegacyGameStateV7,
+  LegacyGameStateV8
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -18,12 +19,14 @@ import {
   balancedAttributesForLegacyLevel,
   createDefaultUniversityState
 } from '../game-core/university/retraining.js';
+import { emptyAttributeProfile } from '../game-core/progression/character.js';
 import { starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV8 } from './schema.js';
+import type { SaveEnvelopeV9 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
 type SaveInput=
   |GameState
+  |LegacyGameStateV8
   |LegacyGameStateV7
   |LegacyGameStateV6
   |LegacyGameStateV5
@@ -33,13 +36,20 @@ type SaveInput=
   |LegacyGameStateV1;
 
 function persistentCharacter(
-  character:{level:number;xp:number;gold:number;attributes?:GameState['character']['attributes']}
+  character:{
+    level:number;
+    xp:number;
+    gold:number;
+    attributes?:GameState['character']['attributes'];
+    attributeXp?:GameState['character']['attributeXp'];
+  }
 ):GameState['character']{
   return {
     level:character.level,
     xp:character.xp,
     gold:character.gold,
-    attributes:character.attributes??balancedAttributesForLegacyLevel(character.level)
+    attributes:character.attributes??balancedAttributesForLegacyLevel(character.level),
+    attributeXp:character.attributeXp??emptyAttributeProfile()
   };
 }
 
@@ -135,8 +145,8 @@ function normalizeState(state:SaveInput):GameState{
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV8={
-    schemaVersion:8,
+  const envelope:SaveEnvelopeV9={
+    schemaVersion:9,
     savedAt,
     state:normalizeState(state)
   };

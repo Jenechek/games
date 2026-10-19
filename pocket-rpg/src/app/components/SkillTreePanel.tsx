@@ -7,13 +7,14 @@ import {
   SKILL_UNLOCK_THRESHOLDS
 } from '../../game-core/progression/skill-tree';
 import {PERSISTED_SKILL_IDS} from '../../game-core/progression/skill-progress';
+import type {SkillProgressionState} from '../../game-core/progression/skill-progress';
 
 function NodeList({
   parentId,
   progression
 }:{
   parentId:string|null;
-  progression:ReturnType<typeof useGame>['state']['skillProgression'];
+  progression:SkillProgressionState;
 }){
   const nodes=skills.filter(node=>node.parentId===parentId);
   if(nodes.length===0)return null;

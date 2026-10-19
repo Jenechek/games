@@ -381,6 +381,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           summons:restored.summons,
           classState:restored.classState,
           skillProgression:restored.skillProgression,
+          equipmentLoadout:restored.equipmentLoadout,
           fishingSkill:{...restored.skillProgression.fishing},
           farmingWork:null,
           gatheringSession:null
@@ -405,11 +406,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         university:state.university,
         summons:state.summons,
         classState:state.classState,
-        skillProgression:state.skillProgression
+        skillProgression:state.skillProgression,
+        equipmentLoadout:state.equipmentLoadout
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons,state.classState,state.skillProgression]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons,state.classState,state.skillProgression,state.equipmentLoadout]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{

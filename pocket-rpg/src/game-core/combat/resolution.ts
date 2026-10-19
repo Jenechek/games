@@ -6,7 +6,7 @@ import {
   endSummonRound,
   resolveAutomaticSummonAttack
 } from '../summons/summons.js';
-import { cappedChance, effectiveEvasion } from './mitigation.js';
+import { cappedChance, effectiveEvasion,physicalMitigationAfterPenetration } from './mitigation.js';
 import type {
   CombatAction,
   CombatLogEntry,
@@ -57,6 +57,8 @@ function resolveAttack(
 
   let damage=attacker.damage*(1+effectMagnitude(attacker,'might'));
   if(rng.chance(.1))damage*=1.5;
+  const mitigation=physicalMitigationAfterPenetration(target.damageMitigation??0,0);
+  damage*=1-mitigation;
   const rounded=Math.max(1,Math.round(damage));
 
   if(interceptors?.length){

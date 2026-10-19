@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ARMOR_SKILL_IDS,
+  BLOCKING_SKILL_IDS,
   LEGACY_PERSISTED_SKILL_IDS_V12,
+  LEGACY_PERSISTED_SKILL_IDS_V14,
   PERSISTED_SKILL_IDS,
   WEAPON_SKILL_IDS,
   collectLegacySkillProgression,
@@ -9,7 +12,8 @@ import {
   mirrorsMatchProgression,
   skillStatesEqual,
   synchronizeSkillMirrors,
-  upgradeSkillProgressionV12
+  upgradeSkillProgressionV12,
+  upgradeSkillProgressionV14
 } from '../dist/game-core/progression/skill-progress.js';
 import {createDefaultFarmingState} from '../dist/game-core/peaceful/farming/farming.js';
 import {createDefaultGatheringState} from '../dist/game-core/peaceful/gathering/gathering.js';
@@ -27,16 +31,25 @@ function legacy(){
   };
 }
 
-test('canonical persisted skill ids include existing professions and authored weapon chain',()=>{
+test('canonical persisted skill ids include professions weapons armor and shields',()=>{
   assert.deepEqual(LEGACY_PERSISTED_SKILL_IDS_V12,[
     'fishing','farming','gathering','crafting','alchemy','trading','diplomacy'
   ]);
   assert.deepEqual(WEAPON_SKILL_IDS,[
     'weapons','one-handed','swords','short-sword'
   ]);
-  assert.deepEqual(PERSISTED_SKILL_IDS,[
+  assert.deepEqual(LEGACY_PERSISTED_SKILL_IDS_V14,[
     'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
     'weapons','one-handed','swords','short-sword'
+  ]);
+  assert.deepEqual(ARMOR_SKILL_IDS,[
+    'armor','body-armor','light-armor','heavy-armor'
+  ]);
+  assert.deepEqual(BLOCKING_SKILL_IDS,['shields']);
+  assert.deepEqual(PERSISTED_SKILL_IDS,[
+    'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
+    'weapons','one-handed','swords','short-sword',
+    'armor','body-armor','light-armor','heavy-armor','shields'
   ]);
   assert.deepEqual(createDefaultSkillProgression(),{
     fishing:{level:0,xp:0},
@@ -49,7 +62,12 @@ test('canonical persisted skill ids include existing professions and authored we
     weapons:{level:0,xp:0},
     'one-handed':{level:0,xp:0},
     swords:{level:0,xp:0},
-    'short-sword':{level:0,xp:0}
+    'short-sword':{level:0,xp:0},
+    armor:{level:0,xp:0},
+    'body-armor':{level:0,xp:0},
+    'light-armor':{level:0,xp:0},
+    'heavy-armor':{level:0,xp:0},
+    shields:{level:0,xp:0}
   });
 });
 
@@ -77,7 +95,12 @@ test('legacy subsystem skill states are collected without changing values',()=>{
     weapons:{level:0,xp:0},
     'one-handed':{level:0,xp:0},
     swords:{level:0,xp:0},
-    'short-sword':{level:0,xp:0}
+    'short-sword':{level:0,xp:0},
+    armor:{level:0,xp:0},
+    'body-armor':{level:0,xp:0},
+    'light-armor':{level:0,xp:0},
+    'heavy-armor':{level:0,xp:0},
+    shields:{level:0,xp:0}
   });
 });
 
@@ -118,7 +141,7 @@ test('skill state equality tolerates tiny floating point noise only',()=>{
 });
 
 
-test('v12 canonical progression upgrades by preserving seven skills and zeroing weapon chain',()=>{
+test('v12 canonical progression upgrades by preserving seven skills and zeroing later combat branches',()=>{
   const legacy={
     fishing:{level:1,xp:1},
     farming:{level:2,xp:2},
@@ -132,7 +155,30 @@ test('v12 canonical progression upgrades by preserving seven skills and zeroing 
   for(const id of LEGACY_PERSISTED_SKILL_IDS_V12){
     assert.deepEqual(upgraded[id],legacy[id]);
   }
-  for(const id of WEAPON_SKILL_IDS){
+  for(const id of [...WEAPON_SKILL_IDS,...ARMOR_SKILL_IDS,...BLOCKING_SKILL_IDS]){
+    assert.deepEqual(upgraded[id],{level:0,xp:0});
+  }
+});
+
+test('v14 progression upgrades by preserving weapon skills and zeroing defense branches',()=>{
+  const legacy={
+    fishing:{level:1,xp:1},
+    farming:{level:2,xp:2},
+    gathering:{level:3,xp:3},
+    crafting:{level:4,xp:4},
+    alchemy:{level:5,xp:5},
+    trading:{level:6,xp:6},
+    diplomacy:{level:7,xp:7},
+    weapons:{level:8,xp:8},
+    'one-handed':{level:9,xp:9},
+    swords:{level:10,xp:10},
+    'short-sword':{level:11,xp:11}
+  };
+  const upgraded=upgradeSkillProgressionV14(legacy);
+  for(const id of LEGACY_PERSISTED_SKILL_IDS_V14){
+    assert.deepEqual(upgraded[id],legacy[id]);
+  }
+  for(const id of [...ARMOR_SKILL_IDS,...BLOCKING_SKILL_IDS]){
     assert.deepEqual(upgraded[id],{level:0,xp:0});
   }
 });

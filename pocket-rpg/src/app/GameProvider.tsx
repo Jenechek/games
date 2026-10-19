@@ -248,11 +248,31 @@ function equippedWeaponSkillPath(state:RuntimeState):string[]{
   return equippedSkillPath(state,'mainHand');
 }
 
+function equippedArmorSkillPath(state:RuntimeState):string[]{
+  const hasMitigation=equipmentSlotStatValues(
+    state.equipmentLoadout,
+    state.inventory,
+    'body',
+    'mitigation'
+  ).some(value=>value>0);
+  return hasMitigation?equippedSkillPath(state,'body'):[];
+}
+
+function equippedBlockingSkillPath(state:RuntimeState):string[]{
+  const hasBlock=equipmentSlotStatValues(
+    state.equipmentLoadout,
+    state.inventory,
+    'offHand',
+    'blockChance'
+  ).some(value=>value>0);
+  return hasBlock?equippedSkillPath(state,'offHand'):[];
+}
+
 function loadoutMitigation(
   state:RuntimeState,
   progression=state.skillProgression
 ):number{
-  const armorPath=equippedSkillPath(state,'body');
+  const armorPath=equippedArmorSkillPath(state);
   const values=EQUIPMENT_SLOTS.flatMap(slot=>
     equipmentSlotStatValues(
       state.equipmentLoadout,
@@ -270,7 +290,7 @@ function loadoutShieldBlock(
   state:RuntimeState,
   progression=state.skillProgression
 ):number{
-  const blockingPath=equippedSkillPath(state,'offHand');
+  const blockingPath=equippedBlockingSkillPath(state);
   const base=equipmentSlotStatValues(
     state.equipmentLoadout,
     state.inventory,
@@ -315,9 +335,9 @@ function applyEquipmentCombatProgression(
   );
   if(!action)return state;
 
-  const weaponPath=equippedSkillPath(state,'mainHand');
-  const armorPath=equippedSkillPath(state,'body');
-  const blockingPath=equippedSkillPath(state,'offHand');
+  const weaponPath=equippedWeaponSkillPath(state);
+  const armorPath=equippedArmorSkillPath(state);
+  const blockingPath=equippedBlockingSkillPath(state);
   let skillProgression=state.skillProgression;
 
   const beforeWeaponMultiplier=action.action==='attack'

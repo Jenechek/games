@@ -19,6 +19,7 @@ import type { ClassState } from './classes/types.js';
 import { effectiveSummonDefinitions } from './classes/classes.js';
 import { playerClasses } from '../content/classes.js';
 import type { LegacySkillProgressionStateV12,SkillProgressionState } from './progression/skill-progress.js';
+import type { EquipmentLoadoutState } from './items/equipment.js';
 
 export interface LegacyCharacterPersistentState {
   level:number;
@@ -64,8 +65,11 @@ export interface LegacyGameStateV11 extends LegacyGameStateV10 {
 export interface LegacyGameStateV12 extends LegacyGameStateV11 {
   skillProgression:LegacySkillProgressionStateV12;
 }
-export interface GameState extends LegacyGameStateV11 {
+export interface LegacyGameStateV13 extends LegacyGameStateV11 {
   skillProgression:SkillProgressionState;
+}
+export interface GameState extends LegacyGameStateV13 {
+  equipmentLoadout:EquipmentLoadoutState;
 }
 
 export function reconstructState(state:GameState,now:number):GameState{

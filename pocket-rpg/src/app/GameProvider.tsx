@@ -53,7 +53,17 @@ import { injuryPenaltySummary } from '../game-core/injuries/injuries';
 import type { InventoryState } from '../game-core/items/inventory';
 import { addInventoryStack, normalizedStackClass, removeInventoryStack } from '../game-core/items/inventory';
 import { itemDefs } from '../content/items';
-import { createEquipmentInstance, createLegacyEquipmentInstance } from '../game-core/items/equipment';
+import {
+  createEquipmentInstance,
+  createLegacyEquipmentInstance,
+  equipInstance as equipLoadoutInstance,
+  equipmentStatTotals,
+  equipmentStatValues,
+  equippedInstance,
+  isEquippedInstance,
+  unequipSlot,
+  type EquipmentSlot
+} from '../game-core/items/equipment';
 import {
   craftRecipeBatch,
   rerollEquipment,
@@ -105,9 +115,10 @@ import type { PlayerClassId } from '../game-core/classes/types';
 import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
 import {
-  applyShortSwordAttackProgression,
-  shortSwordDamageMultiplier
+  applyWeaponAttackProgression,
+  weaponDamageMultiplier
 } from '../game-core/combat/progression';
+import {combineDiminishingPercentages} from '../game-core/combat/mitigation';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -141,6 +152,8 @@ interface Commands {
   buy(id:string,quantity:number):void;
   sellStack(id:string,itemClass:number,quantity:number):void;
   sellEquipment(instanceId:string):void;
+  equipEquipment(instanceId:string):void;
+  unequipEquipment(slot:EquipmentSlot):void;
   useInjuryMedicine(tier:InjuryMedicineTier):void;
   craft(recipeId:string,quantity:number,policy?:MaterialPolicy):void;
   upgradeEquipment(instanceId:string):void;
@@ -201,6 +214,43 @@ function awardCharacterXp(
       ?[...state.log,`Новый уровень: ${result.state.level}. Характеристики повышены автоматически.`]
       :state.log
   };
+}
+
+function skillLevelMap(state:RuntimeState):Record<string,number>{
+  return Object.fromEntries(
+    Object.entries(state.skillProgression).map(([id,skill])=>[id,skill.level])
+  );
+}
+
+function loadoutStats(state:RuntimeState):Record<string,number>{
+  return equipmentStatTotals(state.equipmentLoadout,state.inventory);
+}
+
+function loadoutMitigation(state:RuntimeState):number{
+  return combineDiminishingPercentages(
+    equipmentStatValues(state.equipmentLoadout,state.inventory,'mitigation')
+  );
+}
+
+function equippedWeaponSkillPath(state:RuntimeState):string[]{
+  const weapon=equippedInstance(
+    state.equipmentLoadout,
+    state.inventory,
+    'mainHand'
+  );
+  return weapon?itemDefs[weapon.itemId]?.skillPath??[]:[];
+}
+
+function stateLoadRatio(
+  state:RuntimeState,
+  inventory=state.inventory
+):number{
+  const stats=equipmentStatTotals(state.equipmentLoadout,inventory);
+  return currentLoadRatio(
+    inventory,
+    state.attributes,
+    stats.capacity??0
+  );
 }
 
 function awardCombatProgression(

@@ -80,7 +80,12 @@ function applyAction(
   action:CombatAction|undefined,
   rng:SeededRng,
   interceptors?:CombatState['summons']
-):{success:boolean;damage:number} {
+):{
+  success:boolean;
+  damage:number;
+  magicSkillPath?:readonly string[];
+  magicEffectApplied?:boolean;
+} {
   if(!action)return {success:false,damage:0};
   if(action.type==='heal'){
     actor.hp=Math.min(actor.maxHp,actor.hp+action.amount);
@@ -93,6 +98,37 @@ function applyAction(
   if(action.type==='attack'){
     const result=resolveAttack(actor,target,rng,interceptors);
     return {success:result.hit,damage:result.damage};
+  }
+  if(action.type==='magic'){
+    const manaCost=Math.max(0,action.manaCost);
+    const magnitude=Math.max(0,action.effect.magnitude);
+    if(actor.mana<manaCost||magnitude<=0){
+      return {
+        success:false,
+        damage:0,
+        magicSkillPath:action.skillPath,
+        magicEffectApplied:false
+      };
+    }
+    actor.mana=Math.max(0,actor.mana-manaCost);
+    const rounds=Math.max(1,Math.floor(action.effect.rounds));
+    const existing=actor.effects?.find(effect=>effect.id===action.effect.id);
+    if(existing){
+      existing.magnitude=Math.max(existing.magnitude,magnitude);
+      existing.roundsRemaining=Math.max(existing.roundsRemaining,rounds);
+    }else{
+      actor.effects=[...(actor.effects??[]),{
+        id:action.effect.id,
+        magnitude,
+        roundsRemaining:rounds
+      }];
+    }
+    return {
+      success:true,
+      damage:0,
+      magicSkillPath:action.skillPath,
+      magicEffectApplied:true
+    };
   }
   return {success:true,damage:0};
 }
@@ -138,7 +174,9 @@ export function resolveRound(
       phase,
       action:action.type,
       success:result.success,
-      damage:result.damage
+      damage:result.damage,
+      magicSkillPath:result.magicSkillPath,
+      magicEffectApplied:result.magicEffectApplied
     });
   }
 
@@ -167,7 +205,9 @@ export function resolveRound(
         phase:'enemy-main',
         action:action.type,
         success:result.success,
-        damage:result.damage
+        damage:result.damage,
+        magicSkillPath:result.magicSkillPath,
+        magicEffectApplied:result.magicEffectApplied
       });
     }
   }

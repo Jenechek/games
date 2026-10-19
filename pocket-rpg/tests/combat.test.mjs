@@ -161,3 +161,95 @@ test('player mitigation does not reduce damage intercepted by summon',()=>{
   assert.equal(result.state.player.hp,100);
   assert.equal(result.state.summons[0].hp,80);
 });
+
+
+test('successful magic action spends mana applies focus and exposes magic path',()=>{
+  const state=baseCombat();
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:20,
+        skillPath:['magic','arcane','concentration','arcane-focus'],
+        effect:{id:'focus',magnitude:0.08,rounds:3}
+      }},
+      enemy:{main:{type:'wait'}}
+    },
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.mana,45);
+  const focus=result.state.player.effects?.find(effect=>effect.id==='focus');
+  assert.ok(focus);
+  assert.equal(focus.magnitude,0.08);
+  assert.equal(focus.roundsRemaining,2);
+  const entry=result.log.find(x=>x.phase==='player-main');
+  assert.equal(entry?.action,'magic');
+  assert.equal(entry?.success,true);
+  assert.equal(entry?.magicEffectApplied,true);
+  assert.deepEqual(entry?.magicSkillPath,[
+    'magic','arcane','concentration','arcane-focus'
+  ]);
+});
+
+test('magic action without enough mana applies no effect and is not marked as used magic',()=>{
+  const state=baseCombat();
+  state.player.mana=10;
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:20,
+        skillPath:['magic','arcane','concentration','arcane-focus'],
+        effect:{id:'focus',magnitude:0.08,rounds:3}
+      }},
+      enemy:{main:{type:'wait'}}
+    },
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.mana,25);
+  assert.equal(result.state.player.effects?.length??0,0);
+  const entry=result.log.find(x=>x.phase==='player-main');
+  assert.equal(entry?.success,false);
+  assert.equal(entry?.magicEffectApplied,false);
+});
+
+test('zero magnitude magic action applies nothing and cannot spend mana',()=>{
+  const state=baseCombat();
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:20,
+        skillPath:['magic'],
+        effect:{id:'focus',magnitude:0,rounds:3}
+      }},
+      enemy:{main:{type:'wait'}}
+    },
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.mana,65);
+  assert.equal(result.state.player.effects?.length??0,0);
+  const entry=result.log.find(x=>x.phase==='player-main');
+  assert.equal(entry?.magicEffectApplied,false);
+});
+
+test('negative magic mana cost cannot restore mana',()=>{
+  const state=baseCombat();
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:-20,
+        skillPath:['magic'],
+        effect:{id:'focus',magnitude:0.08,rounds:3}
+      }},
+      enemy:{main:{type:'wait'}}
+    },
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.mana,65);
+});

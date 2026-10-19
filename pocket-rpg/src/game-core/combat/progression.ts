@@ -9,6 +9,7 @@ import type {
   PersistedSkillId,
   SkillProgressionState
 } from '../progression/skill-progress.js';
+import type { CombatLogEntry } from './types.js';
 
 export const COMBAT_DOMAIN_XP_WEIGHTS={
   weapon:1,
@@ -166,4 +167,56 @@ export function applyBlockingChanceSkill(
 ):number{
   return Math.max(0,baseBlockChance)
     *blockingChanceMultiplier(progression,skillPath);
+}
+
+
+export function magicEffectMultiplier(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return combatSkillEffectMultiplier(progression,skillPath);
+}
+
+export function applyMagicActionProgression(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined,
+  success:boolean
+):SkillProgressionState{
+  const path=normalizedCombatSkillPath(progression,skillPath);
+  if(path.length===0)return progression;
+  const domainXp=actionXp(success)*COMBAT_DOMAIN_XP_WEIGHTS.magic;
+  return applyWeightedSkillUse(
+    progression,
+    skills,
+    path.map(skillId=>({skillId,weight:1})),
+    domainXp
+  ) as SkillProgressionState;
+}
+
+export function applyMagicEffectSkill(
+  baseMagnitude:number,
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return Math.max(0,baseMagnitude)
+    *magicEffectMultiplier(progression,skillPath);
+}
+
+
+export function applyLoggedMagicProgression(
+  progression:SkillProgressionState,
+  entry:Pick<
+    CombatLogEntry,
+    'magicEffectApplied'|'magicSkillPath'|'success'
+  >
+):SkillProgressionState{
+  if(
+    entry.magicEffectApplied!==true
+    ||(entry.magicSkillPath?.length??0)===0
+  )return progression;
+  return applyMagicActionProgression(
+    progression,
+    entry.magicSkillPath,
+    entry.success===true
+  );
 }

@@ -13,6 +13,11 @@ export const skills=[
 
   {id:'shields',parentId:null,depth:0,label:'Щиты'},
 
+  {id:'magic',parentId:null,depth:0,label:'Магия'},
+  {id:'arcane',parentId:'magic',depth:1,label:'Аркана'},
+  {id:'concentration',parentId:'arcane',depth:2,label:'Концентрация'},
+  {id:'arcane-focus',parentId:'concentration',depth:3,label:'Магический фокус'},
+
   {id:'professions',parentId:null,depth:0,label:'Профессии'},
   {id:'crafting',parentId:'professions',depth:1,label:'Ремесло'},
   {id:'tailoring',parentId:'crafting',depth:2,label:'Портняжное дело'},

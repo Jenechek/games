@@ -4,7 +4,7 @@ export const playerClasses:Record<PlayerClassId,PlayerClassDefinition>={
   mage:{
     id:'mage',
     label:'Маг',
-    description:'Личный магический боец с одним защитным элементалем, который полностью перехватывает прошедшие атаки по хозяину.',
+    description:'Личный магический боец с базовым Магическим фокусом и одним защитным элементалем, который полностью перехватывает прошедшие атаки по хозяину.',
     summonLimit:1,
     personalDamageMultiplier:1,
     summonHpMultiplier:1,

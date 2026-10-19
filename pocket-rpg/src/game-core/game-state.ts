@@ -18,7 +18,7 @@ import { summonDefinitions } from '../content/summons.js';
 import type { ClassState } from './classes/types.js';
 import { effectiveSummonDefinitions } from './classes/classes.js';
 import { playerClasses } from '../content/classes.js';
-import type { LegacySkillProgressionStateV12,LegacySkillProgressionStateV14,SkillProgressionState } from './progression/skill-progress.js';
+import type { LegacySkillProgressionStateV12,LegacySkillProgressionStateV14,LegacySkillProgressionStateV15,SkillProgressionState } from './progression/skill-progress.js';
 import type { EquipmentLoadoutState } from './items/equipment.js';
 import { pruneInvalidEquipmentLoadout } from './items/equipment.js';
 import { itemDefs } from '../content/items.js';
@@ -71,6 +71,10 @@ export interface LegacyGameStateV13 extends LegacyGameStateV11 {
   skillProgression:LegacySkillProgressionStateV14;
 }
 export interface LegacyGameStateV14 extends LegacyGameStateV13 {
+  equipmentLoadout:EquipmentLoadoutState;
+}
+export interface LegacyGameStateV15 extends LegacyGameStateV11 {
+  skillProgression:LegacySkillProgressionStateV15;
   equipmentLoadout:EquipmentLoadoutState;
 }
 export interface GameState extends LegacyGameStateV11 {

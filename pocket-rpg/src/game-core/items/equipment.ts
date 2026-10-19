@@ -280,7 +280,8 @@ export function equipmentStatTotals(
 export function validateEquipmentLoadout(
   loadout:EquipmentLoadoutState,
   inventory:InventoryState,
-  itemDefs:Record<string,ItemDefinition>
+  itemDefs:Record<string,ItemDefinition>,
+  character?:EquipCharacter
 ):boolean{
   const used=new Set<string>();
   for(const slot of EQUIPMENT_SLOTS){
@@ -291,9 +292,31 @@ export function validateEquipmentLoadout(
     if(!instance)return false;
     const item=itemDefs[instance.itemId];
     if(!item||item.slot!==slot)return false;
+    if(character&&!canEquip(character,item).ok)return false;
     used.add(id);
   }
   return true;
+}
+
+export function pruneInvalidEquipmentLoadout(args:{
+  loadout:EquipmentLoadoutState;
+  inventory:InventoryState;
+  itemDefs:Record<string,ItemDefinition>;
+  character:EquipCharacter;
+}):EquipmentLoadoutState{
+  const next={...args.loadout};
+  for(const slot of EQUIPMENT_SLOTS){
+    const id=next[slot];
+    if(!id)continue;
+    const instance=(args.inventory.equipment??[]).find(
+      entry=>entry.instanceId===id
+    );
+    const item=instance?args.itemDefs[instance.itemId]:undefined;
+    if(!instance||!item||item.slot!==slot||!canEquip(args.character,item).ok){
+      next[slot]=null;
+    }
+  }
+  return next;
 }
 
 

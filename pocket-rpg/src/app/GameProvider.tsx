@@ -459,7 +459,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         };
         n=awardCharacterXp(n,farmingCharacterXp,'farming');
 
-        if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
+        if(stateLoadRatio(n)>=1.2){
           n={
             ...n,
             farmingWork:null,
@@ -493,9 +493,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
           n.world.locationId,
           n.attributes.luck,
           0,
-          results=>currentLoadRatio(
-            applyGatheringResults(n.inventory,results),
-            n.attributes
+          results=>stateLoadRatio(
+            n,
+            applyGatheringResults(n.inventory,results)
           )<1.2
         );
         const inventory=applyGatheringResults(n.inventory,gathered.results);
@@ -519,7 +519,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           0
         );
         n=awardCharacterXp(n,gatheringCharacterXp,'gathering');
-        if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
+        if(stateLoadRatio(n)>=1.2){
           n={...n,gatheringSession:null,log:[...n.log,'Сбор остановлен: перегруз достиг 120%.']};
         }
       }
@@ -531,7 +531,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           rng.current,
           n.world.locationId,
           n.attributes.luck,
-          inventory=>currentLoadRatio(inventory,n.attributes)<1.2
+          inventory=>stateLoadRatio(n,inventory)<1.2
         );
         n={
           ...f.state,
@@ -599,7 +599,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     travelTo(id){
       setState(s=>{
         if(!canPerformAction(s.injuries,'travel',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя путешествовать: персонаж восстанавливается.']};
-        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        const ratio=stateLoadRatio(s);
         return{...s,...travelCommand(s,id,Date.now(),rng.current,ratio),fishing:null,farmingWork:null,gatheringSession:null};
       });
     },
@@ -691,7 +691,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     startFishingCmd(){
       setState(s=>{
         const now=Date.now();
-        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        const ratio=stateLoadRatio(s);
         if(!canStartFishingAction(s.injuries,Boolean(s.combat),Boolean(s.farmingWork),ratio,now)){
           return{...s,log:[...s.log,'Сейчас нельзя рыбачить.']};
         }
@@ -708,7 +708,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canStartFarmingAction(
           s.injuries,
           Boolean(s.combat),
-          currentLoadRatio(s.inventory,s.attributes),
+          stateLoadRatio(s),
           Date.now()
         ))return{...s,log:[...s.log,'Сейчас нельзя работать на поле.']};
         if(s.farmingWork)return s;
@@ -728,7 +728,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canStartFarmingAction(
           s.injuries,
           Boolean(s.combat),
-          currentLoadRatio(s.inventory,s.attributes),
+          stateLoadRatio(s),
           Date.now()
         )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
@@ -756,7 +756,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canStartFarmingAction(
           s.injuries,
           Boolean(s.combat),
-          currentLoadRatio(s.inventory,s.attributes),
+          stateLoadRatio(s),
           Date.now()
         )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
@@ -790,7 +790,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     startGatheringCmd(focus){
       setState(s=>{
         const now=Date.now();
-        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        const ratio=stateLoadRatio(s);
         if(!canStartGatheringAction(s.injuries,Boolean(s.combat),Boolean(s.farmingWork),ratio,now)){
           return{...s,log:[...s.log,'Сейчас нельзя заниматься сбором ресурсов.']};
         }

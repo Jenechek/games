@@ -102,11 +102,12 @@ import {
   effectiveSummonDefinitions
 } from '../game-core/classes/classes';
 import type { PlayerClassId } from '../game-core/classes/types';
+import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
-  fishingXp:number;
+  fishingSkill:SkillState;
   fishing?:FishingState|null;
   farmingWork:FarmingWork|null;
   gatheringSession:GatheringSession|null;
@@ -160,7 +161,7 @@ function initial():RuntimeState {
   return {
     ...g,
     inventory,
-    fishingXp:0,
+    fishingSkill:{...g.skillProgression.fishing},
     fishing:null,
     farmingWork:null,
     gatheringSession:null,
@@ -277,6 +278,8 @@ export function GameProvider({children}:{children:React.ReactNode}){
           university:restored.university,
           summons:restored.summons,
           classState:restored.classState,
+          skillProgression:restored.skillProgression,
+          fishingSkill:{...restored.skillProgression.fishing},
           farmingWork:null,
           gatheringSession:null
         }));
@@ -299,11 +302,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         diplomacy:state.diplomacy,
         university:state.university,
         summons:state.summons,
-        classState:state.classState
+        classState:state.classState,
+        skillProgression:state.skillProgression
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons,state.classState]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons,state.classState,state.skillProgression]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
@@ -342,6 +346,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
         n={
           ...n,
           farming:step.state,
+          skillProgression:{
+            ...n.skillProgression,
+            farming:{...step.state.skill}
+          },
           farmingWork:step.work,
           inventory
         };
@@ -394,6 +402,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
         n={
           ...n,
           gathering:gathered.gathering,
+          skillProgression:{
+            ...n.skillProgression,
+            gathering:{...gathered.gathering.skill}
+          },
           gatheringSession:gathered.session,
           inventory,
           log:resultLog.length?[...n.log,...resultLog]:n.log
@@ -409,7 +421,6 @@ export function GameProvider({children}:{children:React.ReactNode}){
       }
 
       if(n.fishing && !n.farmingWork && !n.gatheringSession && canPerformAction(n.injuries,'fishing',now)){
-        const fishingXpBefore=n.fishingXp;
         const f=advanceFishing(
           n,
           now,
@@ -418,8 +429,14 @@ export function GameProvider({children}:{children:React.ReactNode}){
           n.attributes.luck,
           inventory=>currentLoadRatio(inventory,n.attributes)<1.2
         );
-        n={...n,...f};
-        n=awardCharacterXp(n,Math.max(0,f.fishingXp-fishingXpBefore),'fishing');
+        n={
+          ...f.state,
+          skillProgression:{
+            ...f.state.skillProgression,
+            fishing:{...f.state.fishingSkill}
+          }
+        };
+        n=awardCharacterXp(n,f.gainedXp,'fishing');
         if(n.fishing===null){
           n={...n,log:[...n.log,'Рыбалка остановлена: перегруз достиг 120%.']};
         }
@@ -792,6 +809,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             gold:s.gold+quote.total,
             inventory,
             economy,
+            skillProgression:{...s.skillProgression,trading:{...economy.trading}},
             fishing:null,
             farmingWork:null,
             gatheringSession:null,
@@ -827,6 +845,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             gold:s.gold+quote.total,
             inventory,
             economy,
+            skillProgression:{...s.skillProgression,trading:{...economy.trading}},
             fishing:null,
             farmingWork:null,
             gatheringSession:null,
@@ -877,6 +896,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return awardCharacterXp({
             ...s,
             crafting:result.state,
+            skillProgression:{
+              ...s.skillProgression,
+              [recipe.skillId]:{...result.state.skills[recipe.skillId]}
+            },
             inventory:result.inventory,
             fishing:null,
             farmingWork:null,
@@ -994,6 +1017,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return awardCharacterXp({
             ...s,
             diplomacy:result.state,
+            skillProgression:{...s.skillProgression,diplomacy:{...result.state.skill}},
             economy:{
               ...s.economy,
               factionRelations:{...s.economy.factionRelations,[factionId]:result.relation}
@@ -1029,6 +1053,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return awardCharacterXp({
             ...s,
             diplomacy:result.state,
+            skillProgression:{...s.skillProgression,diplomacy:{...result.state.skill}},
             economy:{
               ...s.economy,
               factionRelations:{...s.economy.factionRelations,[factionId]:result.relation}
@@ -1078,6 +1103,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           return awardCharacterXp({
             ...s,
             diplomacy:result.state,
+            skillProgression:{...s.skillProgression,diplomacy:{...result.state.skill}},
             economy:{
               ...s.economy,
               factionRelations:{...s.economy.factionRelations,[factionId]:result.relation}

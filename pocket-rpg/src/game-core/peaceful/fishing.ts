@@ -1,10 +1,15 @@
 import type { SeededRng } from '../rng.js';
 import type { InventoryState } from '../items/inventory.js';
 import { addInventoryStack,cloneInventory } from '../items/inventory.js';
+import { addSkillXp,type SkillState } from '../progression/skills.js';
 import { baits, fishDefs, fishPools } from '../../content/fishing.js';
 
 export interface FishingState { baitId:string; nextAt:number; cycleMs:number; }
-export interface FishingGameState { inventory:InventoryState; fishingXp:number; fishing?:FishingState|null; }
+export interface FishingGameState {
+  inventory:InventoryState;
+  fishingSkill:SkillState;
+  fishing?:FishingState|null;
+}
 
 export function weightedFishChance(base:number,baitWeight:number,rareBonus:number):number {
   return Math.max(.0001,base*baitWeight*(1+rareBonus));
@@ -42,16 +47,24 @@ export function advanceFishing<T extends FishingGameState>(
   locationId:string,
   luck:number,
   canContinue?:(inventory:InventoryState)=>boolean
-):T {
-  if(!state.fishing) return state;
-  let out:any={...state,inventory:cloneInventory(state.inventory),fishing:{...state.fishing}};
+):{state:T;gainedXp:number} {
+  if(!state.fishing) return {state,gainedXp:0};
+  let out:any={
+    ...state,
+    inventory:cloneInventory(state.inventory),
+    fishingSkill:{...state.fishingSkill},
+    fishing:{...state.fishing}
+  };
+  let gainedXp=0;
   while(out.fishing && now>=out.fishing.nextAt){
     const fishId=chooseFish(locationId,out.fishing.baitId,rng,luck);
     if(!fishId)break;
+    const xp=fishDefs[fishId].xp;
     out.inventory=addInventoryStack(out.inventory,fishId,1,1);
-    out.fishingXp+=fishDefs[fishId].xp;
+    out.fishingSkill=addSkillXp(out.fishingSkill,xp);
+    gainedXp+=xp;
     if(canContinue&&!canContinue(out.inventory)){out.fishing=null;break;}
     out.fishing.nextAt+=out.fishing.cycleMs;
   }
-  return out;
+  return {state:out,gainedXp};
 }

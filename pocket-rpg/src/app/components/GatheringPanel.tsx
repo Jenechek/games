@@ -27,6 +27,7 @@ const reasonLabels={
 export function GatheringPanel(){
   const {state,commands}=useGame();
   const location=locations[state.world.locationId];
+  const gatheringSkill=state.skillProgression.gathering;
   const [focus,setFocus]=useState<GatheringFocus>('balanced');
 
   if(!location?.gathering)return null;
@@ -48,7 +49,7 @@ export function GatheringPanel(){
   return <section className="gathering-panel">
     <h2>Сбор ресурсов</h2>
     <p>
-      Навык: {state.gathering.skill.level} · XP: {state.gathering.skill.xp.toFixed(1)}
+      Навык: {gatheringSkill.level} · XP: {gatheringSkill.xp.toFixed(1)}
       {' · '}Нагрузка: {(loadRatio*100).toFixed(0)}%
     </p>
 

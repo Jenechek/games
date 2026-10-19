@@ -40,7 +40,7 @@ export function MerchantPanel(){
   return <section>
     <h2>{merchant.label}</h2>
     <p>{city.specialization}</p>
-    <p>Торговля: {state.economy.trading.level} · Отношения: {relation.toFixed(0)}</p>
+    <p>Торговля: {state.skillProgression.trading.level} · Отношения: {relation.toFixed(0)}</p>
     {event&&<p>Рыночное событие: <strong>{event.label}</strong></p>}
     {locked&&<p>Торговля сейчас недоступна.</p>}
 

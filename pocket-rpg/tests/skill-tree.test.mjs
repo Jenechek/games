@@ -8,7 +8,9 @@ import {
   SKILL_TREE_MAX_LEVELS,
   SKILL_UNLOCK_THRESHOLDS,
   actionXp,
+  addAbilityXp,
   applyWeightedSkillUse,
+  availableAbilities,
   isAbilityUnlocked,
   multiplicativeSkillMultiplier,
   siblingSpilloverBonus,
@@ -99,8 +101,11 @@ test('ability definitions must use fixed thresholds and existing skills',()=>{
     {id:'bad',label:'Bad',skillId:'missing',unlockLevel:10}
   ]).ok,false);
   assert.equal(validateSkillAbilities(skills,[
-    {id:'bad-threshold',label:'Bad',skillId:'swords',unlockLevel:20},
-    {id:'bad-threshold',label:'Bad2',skillId:'swords',unlockLevel:20}
+    {id:'bad-threshold',label:'Bad',skillId:'swords',unlockLevel:15}
+  ]).ok,false);
+  assert.equal(validateSkillAbilities(skills,[
+    {id:'duplicate',label:'One',skillId:'swords',unlockLevel:20},
+    {id:'duplicate',label:'Two',skillId:'swords',unlockLevel:35}
   ]).ok,false);
 });
 
@@ -108,4 +113,21 @@ test('ability availability is automatic once its skill reaches threshold',()=>{
   const ability={id:'a',label:'A',skillId:'swords',unlockLevel:35};
   assert.equal(isAbilityUnlocked(ability,{swords:{level:34,xp:0}}),false);
   assert.equal(isAbilityUnlocked(ability,{swords:{level:35,xp:0}}),true);
+});
+
+
+test('abilities use the same zero to one hundred XP progression',()=>{
+  const progressed=addAbilityXp({level:0,xp:0},250);
+  assert.equal(progressed.level,1);
+  assert.equal(progressed.xp,0);
+});
+
+test('all unlocked abilities are automatically available',()=>{
+  const abilities=[
+    {id:'a',label:'A',skillId:'swords',unlockLevel:10},
+    {id:'b',label:'B',skillId:'swords',unlockLevel:20},
+    {id:'c',label:'C',skillId:'swords',unlockLevel:35}
+  ];
+  const available=availableAbilities(abilities,{swords:{level:20,xp:0}});
+  assert.deepEqual(available.map(x=>x.id),['a','b']);
 });

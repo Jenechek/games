@@ -5,6 +5,8 @@ import {
   BLOCKING_SKILL_IDS,
   LEGACY_PERSISTED_SKILL_IDS_V12,
   LEGACY_PERSISTED_SKILL_IDS_V14,
+  LEGACY_PERSISTED_SKILL_IDS_V15,
+  MAGIC_SKILL_IDS,
   PERSISTED_SKILL_IDS,
   WEAPON_SKILL_IDS,
   collectLegacySkillProgression,
@@ -13,7 +15,8 @@ import {
   skillStatesEqual,
   synchronizeSkillMirrors,
   upgradeSkillProgressionV12,
-  upgradeSkillProgressionV14
+  upgradeSkillProgressionV14,
+  upgradeSkillProgressionV15
 } from '../dist/game-core/progression/skill-progress.js';
 import {createDefaultFarmingState} from '../dist/game-core/peaceful/farming/farming.js';
 import {createDefaultGatheringState} from '../dist/game-core/peaceful/gathering/gathering.js';
@@ -31,7 +34,7 @@ function legacy(){
   };
 }
 
-test('canonical persisted skill ids include professions weapons armor and shields',()=>{
+test('canonical persisted skill ids include professions combat defense and magic branches',()=>{
   assert.deepEqual(LEGACY_PERSISTED_SKILL_IDS_V12,[
     'fishing','farming','gathering','crafting','alchemy','trading','diplomacy'
   ]);
@@ -46,10 +49,19 @@ test('canonical persisted skill ids include professions weapons armor and shield
     'armor','body-armor','light-armor','heavy-armor'
   ]);
   assert.deepEqual(BLOCKING_SKILL_IDS,['shields']);
-  assert.deepEqual(PERSISTED_SKILL_IDS,[
+  assert.deepEqual(LEGACY_PERSISTED_SKILL_IDS_V15,[
     'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
     'weapons','one-handed','swords','short-sword',
     'armor','body-armor','light-armor','heavy-armor','shields'
+  ]);
+  assert.deepEqual(MAGIC_SKILL_IDS,[
+    'magic','arcane','concentration','arcane-focus'
+  ]);
+  assert.deepEqual(PERSISTED_SKILL_IDS,[
+    'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
+    'weapons','one-handed','swords','short-sword',
+    'armor','body-armor','light-armor','heavy-armor','shields',
+    'magic','arcane','concentration','arcane-focus'
   ]);
   assert.deepEqual(createDefaultSkillProgression(),{
     fishing:{level:0,xp:0},
@@ -67,7 +79,11 @@ test('canonical persisted skill ids include professions weapons armor and shield
     'body-armor':{level:0,xp:0},
     'light-armor':{level:0,xp:0},
     'heavy-armor':{level:0,xp:0},
-    shields:{level:0,xp:0}
+    shields:{level:0,xp:0},
+    magic:{level:0,xp:0},
+    arcane:{level:0,xp:0},
+    concentration:{level:0,xp:0},
+    'arcane-focus':{level:0,xp:0}
   });
 });
 
@@ -100,7 +116,11 @@ test('legacy subsystem skill states are collected without changing values',()=>{
     'body-armor':{level:0,xp:0},
     'light-armor':{level:0,xp:0},
     'heavy-armor':{level:0,xp:0},
-    shields:{level:0,xp:0}
+    shields:{level:0,xp:0},
+    magic:{level:0,xp:0},
+    arcane:{level:0,xp:0},
+    concentration:{level:0,xp:0},
+    'arcane-focus':{level:0,xp:0}
   });
 });
 
@@ -140,9 +160,8 @@ test('skill state equality tolerates tiny floating point noise only',()=>{
   assert.equal(skillStatesEqual({level:3,xp:1},{level:3,xp:1.01}),false);
 });
 
-
-test('v12 canonical progression upgrades by preserving seven skills and zeroing later combat branches',()=>{
-  const legacy={
+test('v12 progression preserves professions and zeroes every later combat branch',()=>{
+  const old={
     fishing:{level:1,xp:1},
     farming:{level:2,xp:2},
     gathering:{level:3,xp:3},
@@ -151,17 +170,22 @@ test('v12 canonical progression upgrades by preserving seven skills and zeroing 
     trading:{level:6,xp:6},
     diplomacy:{level:7,xp:7}
   };
-  const upgraded=upgradeSkillProgressionV12(legacy);
+  const upgraded=upgradeSkillProgressionV12(old);
   for(const id of LEGACY_PERSISTED_SKILL_IDS_V12){
-    assert.deepEqual(upgraded[id],legacy[id]);
+    assert.deepEqual(upgraded[id],old[id]);
   }
-  for(const id of [...WEAPON_SKILL_IDS,...ARMOR_SKILL_IDS,...BLOCKING_SKILL_IDS]){
+  for(const id of [
+    ...WEAPON_SKILL_IDS,
+    ...ARMOR_SKILL_IDS,
+    ...BLOCKING_SKILL_IDS,
+    ...MAGIC_SKILL_IDS
+  ]){
     assert.deepEqual(upgraded[id],{level:0,xp:0});
   }
 });
 
-test('v14 progression upgrades by preserving weapon skills and zeroing defense branches',()=>{
-  const legacy={
+test('v14 progression preserves weapon skills and zeroes defense and magic branches',()=>{
+  const old={
     fishing:{level:1,xp:1},
     farming:{level:2,xp:2},
     gathering:{level:3,xp:3},
@@ -174,11 +198,39 @@ test('v14 progression upgrades by preserving weapon skills and zeroing defense b
     swords:{level:10,xp:10},
     'short-sword':{level:11,xp:11}
   };
-  const upgraded=upgradeSkillProgressionV14(legacy);
+  const upgraded=upgradeSkillProgressionV14(old);
   for(const id of LEGACY_PERSISTED_SKILL_IDS_V14){
-    assert.deepEqual(upgraded[id],legacy[id]);
+    assert.deepEqual(upgraded[id],old[id]);
   }
-  for(const id of [...ARMOR_SKILL_IDS,...BLOCKING_SKILL_IDS]){
+  for(const id of [...ARMOR_SKILL_IDS,...BLOCKING_SKILL_IDS,...MAGIC_SKILL_IDS]){
+    assert.deepEqual(upgraded[id],{level:0,xp:0});
+  }
+});
+
+test('v15 progression preserves defense skills and zeroes magic branch only',()=>{
+  const old={
+    fishing:{level:1,xp:1},
+    farming:{level:2,xp:2},
+    gathering:{level:3,xp:3},
+    crafting:{level:4,xp:4},
+    alchemy:{level:5,xp:5},
+    trading:{level:6,xp:6},
+    diplomacy:{level:7,xp:7},
+    weapons:{level:8,xp:8},
+    'one-handed':{level:9,xp:9},
+    swords:{level:10,xp:10},
+    'short-sword':{level:11,xp:11},
+    armor:{level:12,xp:12},
+    'body-armor':{level:13,xp:13},
+    'light-armor':{level:14,xp:14},
+    'heavy-armor':{level:15,xp:15},
+    shields:{level:16,xp:16}
+  };
+  const upgraded=upgradeSkillProgressionV15(old);
+  for(const id of LEGACY_PERSISTED_SKILL_IDS_V15){
+    assert.deepEqual(upgraded[id],old[id]);
+  }
+  for(const id of MAGIC_SKILL_IDS){
     assert.deepEqual(upgraded[id],{level:0,xp:0});
   }
 });

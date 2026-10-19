@@ -26,6 +26,10 @@ export type CombatAction =
         | {
             kind:'heal';
             amount:number;
+          }
+        | {
+            kind:'damage';
+            amount:number;
           };
     };
 

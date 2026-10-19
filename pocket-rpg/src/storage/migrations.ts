@@ -41,10 +41,13 @@ import type { ClassState } from '../game-core/classes/types.js';
 import type { SummonRosterState } from '../game-core/summons/types.js';
 import type { UniversityState } from '../game-core/university/types.js';
 import {
+  EQUIPMENT_SLOTS,
   createDefaultEquipmentLoadout,
   createLegacyEquipmentInstance,
+  isEquipmentSlot,
   validateEquipmentLoadout,
-  type EquipmentInstance
+  type EquipmentInstance,
+  type EquipmentLoadoutState
 } from '../game-core/items/equipment.js';
 import type { InventoryState,LegacyInventoryState } from '../game-core/items/inventory.js';
 import type {
@@ -498,27 +501,45 @@ function looksLikeLegacyStateV13(value:unknown):value is LegacyGameStateV13{
     diplomacy:value.diplomacy
   });
 }
-function validLoadoutForState(
-  value:LegacyGameStateV14|GameState
-):boolean{
-  if(!isObject(value.equipmentLoadout))return false;
+function looksLikeEquipmentLoadoutShape(
+  value:unknown
+):value is EquipmentLoadoutState{
+  if(!isObject(value))return false;
+  const keys=Object.keys(value);
+  if(keys.length!==EQUIPMENT_SLOTS.length)return false;
+  if(!keys.every(isEquipmentSlot))return false;
+  return EQUIPMENT_SLOTS.every(slot=>
+    value[slot]===null||typeof value[slot]==='string'
+  );
+}
+function validLoadoutForState(args:{
+  equipmentLoadout:EquipmentLoadoutState;
+  inventory:InventoryState;
+  attributes:LegacyGameStateV14['character']['attributes'];
+  skillProgression:LegacySkillProgressionStateV14|SkillProgressionState;
+}):boolean{
   const skills=Object.fromEntries(
-    Object.entries(value.skillProgression).map(([id,skill])=>[id,skill.level])
+    Object.entries(args.skillProgression).map(([id,skill])=>[id,skill.level])
   );
   return validateEquipmentLoadout(
-    value.equipmentLoadout,
-    value.inventory,
+    args.equipmentLoadout,
+    args.inventory,
     itemDefs,
     {
-      attributes:value.character.attributes,
+      attributes:args.attributes,
       skills
     }
   );
 }
 function looksLikeLegacyStateV14(value:unknown):value is LegacyGameStateV14{
-  return looksLikeLegacyStateV13(value)
-    &&isObject(value)
-    &&validLoadoutForState(value as LegacyGameStateV14);
+  if(!looksLikeLegacyStateV13(value)||!isObject(value))return false;
+  if(!looksLikeEquipmentLoadoutShape(value.equipmentLoadout))return false;
+  return validLoadoutForState({
+    equipmentLoadout:value.equipmentLoadout,
+    inventory:value.inventory,
+    attributes:value.character.attributes,
+    skillProgression:value.skillProgression
+  });
 }
 function looksLikeGameState(value:unknown):value is GameState{
   if(!looksLikeLegacyStateV11(value)||!isObject(value))return false;
@@ -531,7 +552,13 @@ function looksLikeGameState(value:unknown):value is GameState{
     economy:value.economy,
     diplomacy:value.diplomacy
   }))return false;
-  return validLoadoutForState(value as GameState);
+  if(!looksLikeEquipmentLoadoutShape(value.equipmentLoadout))return false;
+  return validLoadoutForState({
+    equipmentLoadout:value.equipmentLoadout,
+    inventory:value.inventory,
+    attributes:value.character.attributes,
+    skillProgression:value.skillProgression
+  });
 }
 
 export function upgradeLegacyInventory(

@@ -307,9 +307,10 @@ export function pruneInvalidEquipmentLoadout(args:{
   itemDefs:Record<string,ItemDefinition>;
   character:EquipCharacter;
 }):EquipmentLoadoutState{
-  const next={...args.loadout};
+  const next=createDefaultEquipmentLoadout();
   for(const slot of EQUIPMENT_SLOTS){
-    const id=next[slot];
+    const id=args.loadout[slot];
+    next[slot]=id??null;
     if(!id)continue;
     const instance=(args.inventory.equipment??[]).find(
       entry=>entry.instanceId===id

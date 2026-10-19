@@ -36,8 +36,9 @@ import type {
 } from '../game-core/progression/skill-progress.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
 import { createDefaultClassState } from '../game-core/classes/classes.js';
-import { createDefaultEquipmentLoadout } from '../game-core/items/equipment.js';
+import { createDefaultEquipmentLoadout,pruneInvalidEquipmentLoadout } from '../game-core/items/equipment.js';
 import { starterRecipeIds } from '../content/crafting.js';
+import { itemDefs } from '../content/items.js';
 import type { SaveEnvelopeV14 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
@@ -100,9 +101,21 @@ function withEmptyLoadout(state:LegacyGameStateV13):GameState{
 
 function normalizeState(state:SaveInput):GameState{
   if('equipmentLoadout' in state){
+    const finalized=finalizeState(state,state.skillProgression);
+    const skills=Object.fromEntries(
+      Object.entries(finalized.skillProgression).map(([id,skill])=>[id,skill.level])
+    );
     return {
-      ...finalizeState(state,state.skillProgression),
-      equipmentLoadout:{...state.equipmentLoadout}
+      ...finalized,
+      equipmentLoadout:pruneInvalidEquipmentLoadout({
+        loadout:state.equipmentLoadout,
+        inventory:finalized.inventory,
+        itemDefs,
+        character:{
+          attributes:finalized.character.attributes,
+          skills
+        }
+      })
     };
   }
 

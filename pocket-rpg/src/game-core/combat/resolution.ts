@@ -100,7 +100,9 @@ function applyAction(
     return {success:result.hit,damage:result.damage};
   }
   if(action.type==='magic'){
-    if(actor.mana<action.manaCost){
+    const manaCost=Math.max(0,action.manaCost);
+    const magnitude=Math.max(0,action.effect.magnitude);
+    if(actor.mana<manaCost||magnitude<=0){
       return {
         success:false,
         damage:0,
@@ -108,8 +110,7 @@ function applyAction(
         magicEffectApplied:false
       };
     }
-    actor.mana=Math.max(0,actor.mana-action.manaCost);
-    const magnitude=Math.max(0,action.effect.magnitude);
+    actor.mana=Math.max(0,actor.mana-manaCost);
     const rounds=Math.max(1,Math.floor(action.effect.rounds));
     const existing=actor.effects?.find(effect=>effect.id===action.effect.id);
     if(existing){

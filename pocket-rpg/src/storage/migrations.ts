@@ -488,10 +488,17 @@ function looksLikeLegacyStateV13(value:unknown):value is LegacyGameStateV13{
 function looksLikeGameState(value:unknown):value is GameState{
   if(!looksLikeLegacyStateV13(value)||!isObject(value))return false;
   if(!isObject(value.equipmentLoadout))return false;
+  const skills=Object.fromEntries(
+    Object.entries(value.skillProgression).map(([id,skill])=>[id,skill.level])
+  );
   return validateEquipmentLoadout(
     value.equipmentLoadout as GameState['equipmentLoadout'],
     value.inventory,
-    itemDefs
+    itemDefs,
+    {
+      attributes:value.character.attributes,
+      skills
+    }
   );
 }
 

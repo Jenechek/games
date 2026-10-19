@@ -122,7 +122,7 @@ import {
   applyArmorMitigationSkill,
   applyBlockingActionProgression,
   applyBlockingChanceSkill,
-  applyMagicActionProgression,
+  applyLoggedMagicProgression,
   applyMagicEffectSkill,
   applyWeaponAttackProgression,
   weaponDamageMultiplier
@@ -397,16 +397,10 @@ function applyCombatSkillProgression(
       action.success===true
     );
   }
-  if(
-    action.magicEffectApplied===true
-    &&(action.magicSkillPath?.length??0)>0
-  ){
-    skillProgression=applyMagicActionProgression(
-      skillProgression,
-      action.magicSkillPath,
-      action.success===true
-    );
-  }
+  skillProgression=applyLoggedMagicProgression(
+    skillProgression,
+    action
+  );
 
   const afterWeaponMultiplier=action.action==='attack'
     ?weaponDamageMultiplier(skillProgression,weaponPath)

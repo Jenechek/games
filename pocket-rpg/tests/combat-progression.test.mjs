@@ -26,6 +26,8 @@ import {
   arcaneFocusSpell,
   arcaneMendSpell,
   arcaneWardSpell,
+  canCastMagicSpell,
+  chooseMageAutoSpellId,
   isMagicSpellUnlocked,
   magicSpells
 } from '../dist/content/magic.js';
@@ -387,4 +389,51 @@ test('mend and ward primary magnitudes use their own hierarchy multipliers',()=>
       ARCANE_WARD_SKILL_PATH
     )-(0.10*(1.2**4))
   )<1e-10);
+});
+
+
+test('spell availability enforces unlock mana and meaningful healing',()=>{
+  const base={magicLevel:20,mana:100,hp:50,maxHp:100};
+  assert.equal(canCastMagicSpell(arcaneFocusSpell,base),true);
+  assert.equal(canCastMagicSpell(arcaneMendSpell,base),true);
+  assert.equal(canCastMagicSpell(arcaneWardSpell,base),true);
+
+  assert.equal(canCastMagicSpell(arcaneMendSpell,{...base,magicLevel:9}),false);
+  assert.equal(canCastMagicSpell(arcaneWardSpell,{...base,magicLevel:19}),false);
+  assert.equal(canCastMagicSpell(arcaneMendSpell,{...base,mana:34}),false);
+  assert.equal(canCastMagicSpell(arcaneMendSpell,{...base,hp:100}),false);
+});
+
+test('mage auto magic priority is heal then ward then focus',()=>{
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:35,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-mend');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:60,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-ward');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:90,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-focus');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:90,maxHp:100,
+    focusRoundsRemaining:3,wardRoundsRemaining:3
+  }),null);
+});
+
+test('auto magic falls through locked or unaffordable higher priority spells',()=>{
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:9,mana:100,hp:35,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-focus');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:20,hp:35,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-focus');
 });

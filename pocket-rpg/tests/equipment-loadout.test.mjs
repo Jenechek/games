@@ -199,3 +199,14 @@ test('equipped bag capacity is usable by normal load ratio calculation',()=>{
   );
   assert.ok(withBag<without);
 });
+
+
+test('short sword items declare the authored weapon hierarchy explicitly',()=>{
+  assert.deepEqual(itemDefs['iron-short-sword'].skillPath,[
+    'weapons','one-handed','swords','short-sword'
+  ]);
+  assert.deepEqual(
+    itemDefs['rare-short-sword'].skillPath,
+    itemDefs['iron-short-sword'].skillPath
+  );
+});

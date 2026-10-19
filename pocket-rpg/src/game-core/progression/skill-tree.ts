@@ -168,3 +168,19 @@ export function visibleSkillNodes(
 ):SkillNodeDefinition[]{
   return nodes.map(node=>({...node}));
 }
+
+export function addAbilityXp(
+  state:SkillState,
+  amount:number
+):SkillState{
+  return addSkillXp(state,amount);
+}
+
+export function availableAbilities(
+  abilities:readonly SkillAbilityDefinition[],
+  states:Record<string,SkillState>
+):SkillAbilityDefinition[]{
+  return abilities
+    .filter(ability=>isAbilityUnlocked(ability,states))
+    .map(ability=>({...ability}));
+}

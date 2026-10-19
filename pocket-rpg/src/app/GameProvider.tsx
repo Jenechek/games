@@ -18,6 +18,7 @@ import {
   type UiGameState
 } from './game-controller';
 import { SeededRng } from '../game-core/rng';
+import type { AttributeId } from '../game-core/types';
 import { locations } from '../content/locations';
 import { enemies } from '../content/enemies';
 import { resolveRound } from '../game-core/combat/resolution';
@@ -76,6 +77,10 @@ import {
 } from '../game-core/diplomacy/diplomacy';
 import { factions } from '../content/factions';
 import { basePrices } from '../content/economy';
+import {
+  UNIVERSITY_UNLOCK_LEVEL,
+  startRetraining
+} from '../game-core/university/retraining';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -117,6 +122,7 @@ interface Commands {
   factionAudience():void;
   factionMediation():void;
   completeFactionRequest():void;
+  startAttributeRetraining(from:AttributeId,to:AttributeId,percent:number):void;
 }
 const Ctx=createContext<{state:RuntimeState;commands:Commands}|null>(null);
 
@@ -186,7 +192,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
         const restored=reconstructState(saved,Date.now());
         setState(s=>({
           ...s,
+          level:restored.character.level,
+          xp:restored.character.xp,
           gold:restored.character.gold,
+          attributes:restored.character.attributes,
           world:restored.world,
           inventory:restored.inventory,
           injuries:restored.injuries,
@@ -195,6 +204,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           crafting:restored.crafting,
           economy:restored.economy,
           diplomacy:restored.diplomacy,
+          university:restored.university,
           farmingWork:null,
           gatheringSession:null
         }));
@@ -206,7 +216,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     if(!hydrated)return;
     const id=setTimeout(()=>{
       saveStore.current.save({
-        character:{level:1,xp:0,gold:state.gold},
+        character:{level:state.level,xp:state.xp,gold:state.gold,attributes:state.attributes},
         world:state.world,
         inventory:state.inventory,
         injuries:state.injuries,
@@ -214,11 +224,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         gathering:state.gathering,
         crafting:state.crafting,
         economy:state.economy,
-        diplomacy:state.diplomacy
+        diplomacy:state.diplomacy,
+        university:state.university
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.gold,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
@@ -934,6 +945,42 @@ export function GameProvider({children}:{children:React.ReactNode}){
           };
         }catch{
           return{...s,log:[...s.log,'Поручение этого периода уже выполнено.']};
+        }
+      });
+    },
+    startAttributeRetraining(from,to,percent){
+      setState(s=>{
+        const now=Date.now();
+        const city=cities[s.world.locationId];
+        if(!city?.university){
+          return{...s,log:[...s.log,'В этом городе нет университета.']};
+        }
+        if(s.level<UNIVERSITY_UNLOCK_LEVEL){
+          return{...s,log:[...s.log,`Переобучение доступно с уровня ${UNIVERSITY_UNLOCK_LEVEL}.`]};
+        }
+        if(s.combat||!canPerformAction(s.injuries,'university',now)){
+          return{...s,log:[...s.log,'Сейчас нельзя начать переобучение.']};
+        }
+        try{
+          const university=startRetraining({
+            state:s.university,
+            attributes:s.attributes,
+            level:s.level,
+            from,
+            to,
+            percent,
+            now
+          });
+          return{
+            ...s,
+            university,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Начато переобучение: ${from} → ${to}, ${percent}% доступной части. Завершение через 1 час.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Такое перераспределение сейчас недоступно.']};
         }
       });
     }

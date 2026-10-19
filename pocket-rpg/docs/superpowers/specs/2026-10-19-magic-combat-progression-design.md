@@ -87,8 +87,11 @@ Shared action baseline:
 - success: 20 XP;
 - failure: 5 XP.
 
-Magic weight:
-- 30%.
+Magic domain share:
+- 30% of the action baseline is calculated first;
+- the resulting domain XP then uses a normal 100% branch weight inside the authored Magic path.
+
+This preserves the global rule that branch weights stay within 50–100% while keeping the agreed Magic share at exactly 30%.
 
 Successful Arcane Focus chain:
 - Magic: 6 XP;

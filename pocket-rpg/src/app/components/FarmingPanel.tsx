@@ -21,7 +21,8 @@ export function FarmingPanel(){
 
   const now=Date.now();
   const localFields=state.farming.fields.filter(field=>field.locationId===state.world.locationId);
-  const slots=fieldSlotLimit(state.farming.skill.level);
+  const farmingSkill=state.skillProgression.farming;
+  const slots=fieldSlotLimit(farmingSkill.level);
   const loadRatio=currentLoadRatio(state.inventory,state.attributes);
   const locked=!canStartFarmingAction(
     state.injuries,
@@ -35,7 +36,7 @@ export function FarmingPanel(){
   return <section className="farming-panel">
     <h2>Фермерство</h2>
     <p>
-      Навык: {state.farming.skill.level} · XP: {state.farming.skill.xp.toFixed(1)}
+      Навык: {farmingSkill.level} · XP: {farmingSkill.xp.toFixed(1)}
       {' · '}Поля: {state.farming.fields.length}/{slots}
     </p>
     <p>{location.agriculture==='safe'?'Безопасные сельскохозяйственные земли.':'Нейтральные земли: во время работы возможны редкие нападения.'}</p>

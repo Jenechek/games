@@ -56,11 +56,13 @@ import { itemDefs } from '../content/items';
 import {
   createEquipmentInstance,
   createLegacyEquipmentInstance,
+  EQUIPMENT_SLOTS,
   equipInstance as equipLoadoutInstance,
   equipmentStatTotals,
   equipmentStatValues,
   equippedInstance,
   isEquippedInstance,
+  pruneInvalidEquipmentLoadout,
   unequipSlot,
   type EquipmentSlot
 } from '../game-core/items/equipment';
@@ -417,6 +419,22 @@ export function GameProvider({children}:{children:React.ReactNode}){
     const id=setInterval(()=>setState(s=>{
       const now=Date.now();
       let n:RuntimeState={...s,...tickGame(s,now)};
+      const prunedLoadout=pruneInvalidEquipmentLoadout({
+        loadout:n.equipmentLoadout,
+        inventory:n.inventory,
+        itemDefs,
+        character:{
+          attributes:n.attributes,
+          skills:skillLevelMap(n)
+        }
+      });
+      if(EQUIPMENT_SLOTS.some(slot=>prunedLoadout[slot]!==n.equipmentLoadout[slot])){
+        n={
+          ...n,
+          equipmentLoadout:prunedLoadout,
+          log:[...n.log,'Предмет снят: требования экипировки больше не выполнены.']
+        };
+      }
       if(!n.combat){
         const effectiveSummons=effectiveSummonDefinitions(
           n.classState,

@@ -16,7 +16,7 @@ export function FishingPanel(){
   );
   return <section>
     <h2>Рыбалка</h2>
-    <p>Опыт: {state.fishingXp.toFixed(1)}</p>
+    <p>Навык: {state.skillProgression.fishing.level} · XP: {state.skillProgression.fishing.xp.toFixed(1)}</p>
     <button disabled={!state.fishing&&locked} onClick={state.fishing?commands.stopFishingCmd:commands.startFishingCmd}>
       {state.fishing?'Остановить':'Начать рыбалку'}
     </button>

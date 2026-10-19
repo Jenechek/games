@@ -358,7 +358,7 @@ function awardCombatProgression(
   );
 }
 
-function applyEquipmentCombatProgression(
+function applyCombatSkillProgression(
   state:RuntimeState,
   log:CombatLogEntry[]
 ):RuntimeState{
@@ -725,7 +725,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           Date.now()
         )
       };
-      afterRound=applyEquipmentCombatProgression(afterRound,r.log);
+      afterRound=applyCombatSkillProgression(afterRound,r.log);
       if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
       if(r.state.enemy.hp<=0){
         const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
@@ -787,7 +787,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             Date.now()
           )
         };
-        afterRound=applyEquipmentCombatProgression(afterRound,r.log);
+        afterRound=applyCombatSkillProgression(afterRound,r.log);
         if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
         if(r.state.enemy.hp<=0){
           const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
@@ -826,7 +826,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             Date.now()
           )
         };
-        afterRound=applyEquipmentCombatProgression(afterRound,r.log);
+        afterRound=applyCombatSkillProgression(afterRound,r.log);
         if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
         if(r.state.enemy.hp<=0){
           const enemyLevel=enemies[s.combat.enemy.id]?.level??1;

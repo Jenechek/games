@@ -59,7 +59,7 @@ import {
   EQUIPMENT_SLOTS,
   equipInstance as equipLoadoutInstance,
   equipmentStatTotals,
-  equipmentStatValues,
+  equipmentSlotStatValues,
   equippedInstance,
   isEquippedInstance,
   pruneInvalidEquipmentLoadout,
@@ -117,7 +117,11 @@ import type { PlayerClassId } from '../game-core/classes/types';
 import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
 import {
+  applyArmorActionProgression,
+  applyBlockingActionProgression,
   applyWeaponAttackProgression,
+  armorMitigationMultiplier,
+  blockingChanceMultiplier,
   weaponDamageMultiplier
 } from '../game-core/combat/progression';
 import {combineDiminishingPercentages} from '../game-core/combat/mitigation';
@@ -228,19 +232,54 @@ function loadoutStats(state:RuntimeState):Record<string,number>{
   return equipmentStatTotals(state.equipmentLoadout,state.inventory);
 }
 
-function loadoutMitigation(state:RuntimeState):number{
-  return combineDiminishingPercentages(
-    equipmentStatValues(state.equipmentLoadout,state.inventory,'mitigation')
+function equippedSkillPath(
+  state:RuntimeState,
+  slot:EquipmentSlot
+):string[]{
+  const instance=equippedInstance(
+    state.equipmentLoadout,
+    state.inventory,
+    slot
   );
+  return instance?itemDefs[instance.itemId]?.skillPath??[]:[];
 }
 
 function equippedWeaponSkillPath(state:RuntimeState):string[]{
-  const weapon=equippedInstance(
+  return equippedSkillPath(state,'mainHand');
+}
+
+function loadoutMitigation(
+  state:RuntimeState,
+  progression=state.skillProgression
+):number{
+  const armorPath=equippedSkillPath(state,'body');
+  const armorMultiplier=armorMitigationMultiplier(
+    progression,
+    armorPath
+  );
+  const values=EQUIPMENT_SLOTS.flatMap(slot=>
+    equipmentSlotStatValues(
+      state.equipmentLoadout,
+      state.inventory,
+      slot,
+      'mitigation'
+    ).map(value=>slot==='body'?value*armorMultiplier:value)
+  );
+  return combineDiminishingPercentages(values);
+}
+
+function loadoutShieldBlock(
+  state:RuntimeState,
+  progression=state.skillProgression
+):number{
+  const blockingPath=equippedSkillPath(state,'offHand');
+  const base=equipmentSlotStatValues(
     state.equipmentLoadout,
     state.inventory,
-    'mainHand'
-  );
-  return weapon?itemDefs[weapon.itemId]?.skillPath??[]:[];
+    'offHand',
+    'blockChance'
+  ).reduce((sum,value)=>sum+value,0);
+  return base*blockingChanceMultiplier(progression,blockingPath);
 }
 
 function stateLoadRatio(
@@ -269,29 +308,49 @@ function awardCombatProgression(
   );
 }
 
-function applyWeaponCombatProgression(
+function applyEquipmentCombatProgression(
   state:RuntimeState,
   log:CombatLogEntry[]
 ):RuntimeState{
-  const attack=log.find(entry=>
-    entry.phase==='player-main'&&entry.action==='attack'
+  const action=log.find(entry=>
+    entry.phase==='player-main'&&entry.action!=='wait'
   );
-  const skillPath=equippedWeaponSkillPath(state);
-  if(!attack||skillPath.length===0)return state;
+  if(!action)return state;
 
-  const beforeMultiplier=weaponDamageMultiplier(
-    state.skillProgression,
-    skillPath
-  );
-  const skillProgression=applyWeaponAttackProgression(
-    state.skillProgression,
-    skillPath,
-    attack.success===true
-  );
-  const afterMultiplier=weaponDamageMultiplier(
-    skillProgression,
-    skillPath
-  );
+  const weaponPath=equippedSkillPath(state,'mainHand');
+  const armorPath=equippedSkillPath(state,'body');
+  const blockingPath=equippedSkillPath(state,'offHand');
+  let skillProgression=state.skillProgression;
+
+  const beforeWeaponMultiplier=action.action==='attack'
+    ?weaponDamageMultiplier(skillProgression,weaponPath)
+    :1;
+
+  if(action.action==='attack'&&weaponPath.length>0){
+    skillProgression=applyWeaponAttackProgression(
+      skillProgression,
+      weaponPath,
+      action.success===true
+    );
+  }
+  if(armorPath.length>0){
+    skillProgression=applyArmorActionProgression(
+      skillProgression,
+      armorPath,
+      action.success===true
+    );
+  }
+  if(blockingPath.length>0){
+    skillProgression=applyBlockingActionProgression(
+      skillProgression,
+      blockingPath,
+      action.success===true
+    );
+  }
+
+  const afterWeaponMultiplier=action.action==='attack'
+    ?weaponDamageMultiplier(skillProgression,weaponPath)
+    :1;
 
   return {
     ...state,
@@ -301,7 +360,10 @@ function applyWeaponCombatProgression(
           ...state.combat,
           player:{
             ...state.combat.player,
-            damage:state.combat.player.damage*(afterMultiplier/beforeMultiplier)
+            damage:state.combat.player.damage
+              *(afterWeaponMultiplier/beforeWeaponMultiplier),
+            shieldBlock:loadoutShieldBlock(state,skillProgression),
+            damageMitigation:loadoutMitigation(state,skillProgression)
           }
         }
       :state.combat
@@ -323,14 +385,15 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
   );
   const stats=loadoutStats(state);
   const weaponSkillPath=equippedWeaponSkillPath(state);
-  const hasShield=(stats.blockChance??0)>0;
+  const shieldBlock=loadoutShieldBlock(state);
+  const hasShield=shieldBlock>0;
   return {
     round:1,
     player:{
       id:'player',hp:playerMaxHp,maxHp:playerMaxHp,
       mana:100,maxMana:100,stamina:100,maxStamina:100,
       stunned:false,
-      shieldBlock:stats.blockChance??0,
+      shieldBlock,
       hasShield,
       parry:(.1+(stats.parry??0))*penalties.blockParryMultiplier,
       evasion:.08+(stats.evasion??0),
@@ -597,7 +660,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           Date.now()
         )
       };
-      afterRound=applyWeaponCombatProgression(afterRound,r.log);
+      afterRound=applyEquipmentCombatProgression(afterRound,r.log);
       if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
       if(r.state.enemy.hp<=0){
         const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
@@ -659,7 +722,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             Date.now()
           )
         };
-        afterRound=applyWeaponCombatProgression(afterRound,r.log);
+        afterRound=applyEquipmentCombatProgression(afterRound,r.log);
         if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
         if(r.state.enemy.hp<=0){
           const enemyLevel=enemies[s.combat.enemy.id]?.level??1;

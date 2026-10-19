@@ -21,6 +21,10 @@ import {
   effectiveSummonDefinitions
 } from '../dist/game-core/classes/classes.js';
 import {
+  createDefaultEquipmentLoadout,
+  createLegacyEquipmentInstance
+} from '../dist/game-core/items/equipment.js';
+import {
   SUMMON_FULL_RECOVERY_MS,
   createDefaultSummonRoster,
   summonCreature
@@ -34,6 +38,7 @@ import {
 import {starterRecipeIds} from '../dist/content/crafting.js';
 import {summonDefinitions} from '../dist/content/summons.js';
 import {playerClasses} from '../dist/content/classes.js';
+import {itemDefs} from '../dist/content/items.js';
 
 function legacyV4State(){
   return {
@@ -86,7 +91,7 @@ function legacyV12State(level=10){
     }
   };
 }
-function fullState(level=10){
+function legacyV13State(level=10){
   const legacy=legacyV11State(level);
   return {
     ...legacy,
@@ -99,70 +104,141 @@ function fullState(level=10){
     })
   };
 }
+function fullState(level=10){
+  return {
+    ...legacyV13State(level),
+    equipmentLoadout:createDefaultEquipmentLoadout()
+  };
+}
+function addSword(state,itemId='iron-short-sword'){
+  const instance=createLegacyEquipmentInstance('eq-1',itemDefs[itemId]);
+  state.inventory={
+    stacks:state.inventory.stacks.map(stack=>({...stack})),
+    equipment:[...(state.inventory.equipment??[]),instance]
+  };
+  state.crafting={...state.crafting,nextEquipmentId:2};
+  return instance;
+}
 
-test('schema v12 migrates to v13 preserving seven skills and adding zero weapon chain',()=>{
+test('schema v13 migrates to v14 with empty equipment loadout',()=>{
+  const old=legacyV13State();
+  old.skillProgression['short-sword']={level:5,xp:12.5};
+  const migrated=migrateSave({schemaVersion:13,savedAt:1000,state:old});
+  assert.equal(migrated?.schemaVersion,14);
+  assert.deepEqual(migrated?.state.skillProgression,old.skillProgression);
+  assert.deepEqual(migrated?.state.equipmentLoadout,createDefaultEquipmentLoadout());
+});
+
+test('schema v12 migrates through v13 progression into v14 loadout state',()=>{
   const old=legacyV12State();
   old.skillProgression.fishing={level:4,xp:91.25};
   old.skillProgression.farming={level:7,xp:12.5};
   old.farming.skill={...old.skillProgression.farming};
-  old.skillProgression.trading={level:11,xp:16.5};
-  old.economy.trading={...old.skillProgression.trading};
-
   const migrated=migrateSave({schemaVersion:12,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,13);
+  assert.equal(migrated?.schemaVersion,14);
   assert.deepEqual(migrated?.state.skillProgression.fishing,{level:4,xp:91.25});
   assert.deepEqual(migrated?.state.skillProgression.farming,{level:7,xp:12.5});
-  assert.deepEqual(migrated?.state.skillProgression.trading,{level:11,xp:16.5});
   for(const id of WEAPON_SKILL_IDS){
     assert.deepEqual(migrated?.state.skillProgression[id],{level:0,xp:0});
   }
+  assert.deepEqual(migrated?.state.equipmentLoadout,createDefaultEquipmentLoadout());
 });
 
-test('schema v11 migrates directly to v13 with default fishing and weapon progression',()=>{
+test('schema v11 migrates directly to v14 with later systems at defaults',()=>{
   const old=legacyV11State();
   old.diplomacy.skill={level:12,xp:17.5};
   const migrated=migrateSave({schemaVersion:11,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,13);
+  assert.equal(migrated?.schemaVersion,14);
   assert.deepEqual(migrated?.state.skillProgression.diplomacy,{level:12,xp:17.5});
   assert.deepEqual(migrated?.state.skillProgression.fishing,{level:0,xp:0});
-  for(const id of WEAPON_SKILL_IDS){
-    assert.deepEqual(migrated?.state.skillProgression[id],{level:0,xp:0});
-  }
+  assert.deepEqual(migrated?.state.equipmentLoadout,createDefaultEquipmentLoadout());
 });
 
-test('save load round trip preserves v13 profession and weapon skills',async()=>{
+test('save load round trip preserves v14 equipped instance ids',async()=>{
   const store=new MemorySaveStore();
   const state=fullState();
-  state.skillProgression.fishing={level:4,xp:91.25};
-  state.skillProgression.weapons={level:2,xp:12};
-  state.skillProgression['one-handed']={level:3,xp:13};
-  state.skillProgression.swords={level:4,xp:14};
-  state.skillProgression['short-sword']={level:5,xp:15};
+  state.character.attributes.strength=12;
+  addSword(state);
+  state.equipmentLoadout.mainHand='eq-1';
 
   await store.save(state,1500);
   const loaded=await store.load();
-  assert.deepEqual(loaded?.skillProgression,state.skillProgression);
+  assert.deepEqual(loaded?.equipmentLoadout,state.equipmentLoadout);
+  assert.equal(loaded?.inventory.equipment?.[0].instanceId,'eq-1');
 });
 
-test('save normalization keeps canonical map authoritative over compatibility mirrors',()=>{
+test('current encoded saves use schema v14',()=>{
   const state=fullState();
   state.skillProgression.trading={level:20,xp:42};
   state.economy.trading={level:1,xp:1};
 
   const envelope=JSON.parse(encodeSave(state,999));
-  assert.equal(envelope.schemaVersion,13);
+  assert.equal(envelope.schemaVersion,14);
   assert.deepEqual(envelope.state.skillProgression.trading,{level:20,xp:42});
   assert.deepEqual(envelope.state.economy.trading,{level:20,xp:42});
+  assert.deepEqual(envelope.state.equipmentLoadout,createDefaultEquipmentLoadout());
 });
 
-test('v13 rejects drift between canonical profession skill and nested mirror',()=>{
+test('v14 rejects loadout references that are missing or in the wrong slot',()=>{
+  const state=fullState();
+  state.character.attributes.strength=12;
+  addSword(state);
+
+  assert.equal(migrateSave({
+    schemaVersion:14,
+    savedAt:1,
+    state:{...state,equipmentLoadout:{
+      ...state.equipmentLoadout,
+      mainHand:'missing'
+    }}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:14,
+    savedAt:1,
+    state:{...state,equipmentLoadout:{
+      ...state.equipmentLoadout,
+      offHand:'eq-1'
+    }}
+  }),null);
+});
+
+test('v14 rejects extra slots and unmet equipment requirements',()=>{
+  const state=fullState();
+  state.character.attributes.strength=12;
+  addSword(state);
+  state.equipmentLoadout.mainHand='eq-1';
+
+  assert.equal(migrateSave({
+    schemaVersion:14,
+    savedAt:1,
+    state:{...state,equipmentLoadout:{
+      ...state.equipmentLoadout,
+      extra:null
+    }}
+  }),null);
+
+  assert.equal(migrateSave({
+    schemaVersion:14,
+    savedAt:1,
+    state:{
+      ...state,
+      character:{
+        ...state.character,
+        attributes:{...state.character.attributes,strength:11}
+      }
+    }
+  }),null);
+});
+
+test('v14 rejects drift between canonical profession skill and nested mirror',()=>{
   const state=fullState();
   state.skillProgression.diplomacy={level:20,xp:5};
-  assert.equal(migrateSave({schemaVersion:13,savedAt:1,state}),null);
+  assert.equal(migrateSave({schemaVersion:14,savedAt:1,state}),null);
 });
 
 test('v13 rejects missing unknown or malformed weapon skill entries',()=>{
-  const base=fullState();
+  const base=legacyV13State();
 
   const missing={...base.skillProgression};
   delete missing['short-sword'];
@@ -203,24 +279,27 @@ test('v12 rejects weapon keys because they did not exist in that schema',()=>{
   }),null);
 });
 
-test('older schemas still migrate through v13 with default missing systems',()=>{
+test('older schemas still migrate through v14 with default loadout',()=>{
   const old=legacyV4State();
   old.inventory.stacks=[
     {itemId:'iron-short-sword',quantity:2},
     {itemId:'medicinal-herb-rare',quantity:3}
   ];
   const migrated=migrateSave({schemaVersion:4,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,13);
+  assert.equal(migrated?.schemaVersion,14);
   assert.equal(migrated?.state.inventory.equipment.length,2);
   assert.equal(migrated?.state.crafting.nextEquipmentId,3);
   assert.deepEqual(migrated?.state.skillProgression,createDefaultSkillProgression());
   assert.deepEqual(migrated?.state.summons,createDefaultSummonRoster());
   assert.deepEqual(migrated?.state.classState,createDefaultClassState());
+  assert.deepEqual(migrated?.state.equipmentLoadout,createDefaultEquipmentLoadout());
 });
 
-test('v13 still supports class-scaled summons alongside weapon progression',()=>{
+test('v14 still supports class-scaled summons alongside equipped items',()=>{
   const state=fullState();
-  state.skillProgression['short-sword']={level:20,xp:3};
+  state.character.attributes.strength=12;
+  addSword(state);
+  state.equipmentLoadout.mainHand='eq-1';
   state.classState=choosePlayerClass(state.classState,'tamer');
   const effective=effectiveSummonDefinitions(
     state.classState,
@@ -234,16 +313,17 @@ test('v13 still supports class-scaled summons alongside weapon progression',()=>
     now:100
   });
   assert.equal(state.summons.active[0].hp,81);
-  assert.notEqual(migrateSave({schemaVersion:13,savedAt:200,state}),null);
+  assert.notEqual(migrateSave({schemaVersion:14,savedAt:200,state}),null);
 });
 
-test('reconstructing state preserves weapon progression while completing timed systems',()=>{
+test('reconstructing state prunes equipment invalidated by completed retraining',()=>{
   const state=fullState(10);
-  state.skillProgression['short-sword']={level:6,xp:12.5};
-  state.classState=choosePlayerClass(state.classState,'tamer');
-  state.character.attributes.strength+=12;
-  state.character.attributes.agility-=6;
-  state.character.attributes.intuition-=6;
+  state.character.attributes.strength=20;
+  state.skillProgression['short-sword']={level:20,xp:0};
+  addSword(state,'rare-short-sword');
+  state.equipmentLoadout.mainHand='eq-1';
+
+  state.character.attributes.agility-=5;
   state.university=startRetraining({
     state:state.university,
     attributes:state.character.attributes,
@@ -253,6 +333,21 @@ test('reconstructing state preserves weapon progression while completing timed s
     percent:100,
     now:1000
   });
+
+  const now=1000+RETRAINING_DURATION_MS;
+  const once=reconstructState(state,now);
+  assert.equal(once.university.pending,null);
+  if(once.character.attributes.strength<20){
+    assert.equal(once.equipmentLoadout.mainHand,null);
+  }
+});
+
+test('reconstructing state preserves valid loadout and timed summon recovery',()=>{
+  const state=fullState(10);
+  state.character.attributes.strength=12;
+  addSword(state);
+  state.equipmentLoadout.mainHand='eq-1';
+  state.classState=choosePlayerClass(state.classState,'tamer');
   const effective=effectiveSummonDefinitions(state.classState,playerClasses,summonDefinitions);
   state.summons=summonCreature({
     roster:state.summons,
@@ -262,10 +357,8 @@ test('reconstructing state preserves weapon progression while completing timed s
   });
   state.summons.active[0].hp=20;
 
-  const now=1000+Math.max(RETRAINING_DURATION_MS,SUMMON_FULL_RECOVERY_MS);
-  const once=reconstructState(state,now);
-  assert.deepEqual(once.skillProgression,state.skillProgression);
-  assert.equal(once.university.pending,null);
+  const once=reconstructState(state,1000+SUMMON_FULL_RECOVERY_MS);
+  assert.equal(once.equipmentLoadout.mainHand,'eq-1');
   assert.equal(once.summons.active[0].hp,81);
 });
 

@@ -49,8 +49,8 @@ for(const fish of Object.values(fishDefs)){
 }
 
 export const itemDefs:Record<string,ItemDefinition>={
-  'iron-short-sword':{id:'iron-short-sword',label:'Железный короткий меч',weight:3,slot:'mainHand',rarity:'common',requirements:{attributes:{strength:12},skills:{'short-sword':1}},stats:{damage:10}},
-  'rare-short-sword':{id:'rare-short-sword',label:'Редкий короткий меч',weight:3,slot:'mainHand',rarity:'rare',requirements:{attributes:{strength:20},skills:{'short-sword':20}},stats:{damage:16}},
+  'iron-short-sword':{id:'iron-short-sword',label:'Железный короткий меч',weight:3,slot:'mainHand',skillPath:['weapons','one-handed','swords','short-sword'],rarity:'common',requirements:{attributes:{strength:12},skills:{'short-sword':0}},stats:{damage:10}},
+  'rare-short-sword':{id:'rare-short-sword',label:'Редкий короткий меч',weight:3,slot:'mainHand',skillPath:['weapons','one-handed','swords','short-sword'],rarity:'rare',requirements:{attributes:{strength:20},skills:{'short-sword':20}},stats:{damage:16}},
   'wooden-shield':{id:'wooden-shield',label:'Деревянный щит',weight:4,slot:'offHand',rarity:'common',stats:{mitigation:0.08,blockChance:0.12}},
   'light-armor':{id:'light-armor',label:'Лёгкая броня',weight:5,slot:'body',rarity:'common',stats:{mitigation:0.05,evasion:0.08}},
   'heavy-armor':{id:'heavy-armor',label:'Тяжёлая броня',weight:12,slot:'body',rarity:'common',stats:{mitigation:0.18}},

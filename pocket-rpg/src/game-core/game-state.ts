@@ -19,6 +19,9 @@ import type { ClassState } from './classes/types.js';
 import { effectiveSummonDefinitions } from './classes/classes.js';
 import { playerClasses } from '../content/classes.js';
 import type { LegacySkillProgressionStateV12,SkillProgressionState } from './progression/skill-progress.js';
+import type { EquipmentLoadoutState } from './items/equipment.js';
+import { pruneInvalidEquipmentLoadout } from './items/equipment.js';
+import { itemDefs } from '../content/items.js';
 
 export interface LegacyCharacterPersistentState {
   level:number;
@@ -64,8 +67,11 @@ export interface LegacyGameStateV11 extends LegacyGameStateV10 {
 export interface LegacyGameStateV12 extends LegacyGameStateV11 {
   skillProgression:LegacySkillProgressionStateV12;
 }
-export interface GameState extends LegacyGameStateV11 {
+export interface LegacyGameStateV13 extends LegacyGameStateV11 {
   skillProgression:SkillProgressionState;
+}
+export interface GameState extends LegacyGameStateV13 {
+  equipmentLoadout:EquipmentLoadoutState;
 }
 
 export function reconstructState(state:GameState,now:number):GameState{
@@ -75,11 +81,24 @@ export function reconstructState(state:GameState,now:number):GameState{
     now
   });
   const effectiveSummons=effectiveSummonDefinitions(state.classState,playerClasses,summonDefinitions);
+  const skills=Object.fromEntries(
+    Object.entries(state.skillProgression).map(([id,skill])=>[id,skill.level])
+  );
+  const equipmentLoadout=pruneInvalidEquipmentLoadout({
+    loadout:state.equipmentLoadout,
+    inventory:state.inventory,
+    itemDefs,
+    character:{
+      attributes:retraining.attributes,
+      skills
+    }
+  });
   return {
     ...state,
     character:{...state.character,attributes:retraining.attributes},
     university:retraining.state,
     summons:reconstructSummonRecovery(state.summons,effectiveSummons,now),
+    equipmentLoadout,
     world:advanceWorldTime(state.world,now),
     injuries:reconstructRecovery(state.injuries,now)
   };

@@ -1,5 +1,6 @@
 import type { AttributeId } from '../types.js';
 import type { ItemDefinition,ItemRarity } from './items.js';
+import type { InventoryState } from './inventory.js';
 
 export interface EquipCharacter { attributes:Record<AttributeId,number>; skills:Record<string,number>; }
 export function canEquip(character:EquipCharacter,item:ItemDefinition):{ok:boolean;reasons:string[]} {
@@ -197,4 +198,146 @@ export function rerollEquipmentProperty(
     index===propertyIndex?{...rolled,value:scaledValue}:property
   );
   return {...instance,properties};
+}
+
+
+export const EQUIPMENT_SLOTS=['mainHand','offHand','body','bag'] as const;
+export type EquipmentSlot=typeof EQUIPMENT_SLOTS[number];
+export type EquipmentLoadoutState=Record<EquipmentSlot,string|null>;
+
+export function createDefaultEquipmentLoadout():EquipmentLoadoutState{
+  return {mainHand:null,offHand:null,body:null,bag:null};
+}
+
+export function isEquipmentSlot(value:unknown):value is EquipmentSlot{
+  return typeof value==='string'
+    &&(EQUIPMENT_SLOTS as readonly string[]).includes(value);
+}
+
+export function equippedInstance(
+  loadout:EquipmentLoadoutState,
+  inventory:InventoryState,
+  slot:EquipmentSlot
+):EquipmentInstance|null{
+  const id=loadout[slot];
+  if(!id)return null;
+  return (inventory.equipment??[]).find(instance=>instance.instanceId===id)??null;
+}
+
+export function isEquippedInstance(
+  loadout:EquipmentLoadoutState,
+  instanceId:string
+):boolean{
+  return EQUIPMENT_SLOTS.some(slot=>loadout[slot]===instanceId);
+}
+
+export function equipInstance(args:{
+  loadout:EquipmentLoadoutState;
+  inventory:InventoryState;
+  instanceId:string;
+  itemDefs:Record<string,ItemDefinition>;
+  character:EquipCharacter;
+}):{loadout:EquipmentLoadoutState;slot:EquipmentSlot}{
+  const instance=(args.inventory.equipment??[]).find(
+    entry=>entry.instanceId===args.instanceId
+  );
+  if(!instance)throw new Error('equipment not owned');
+  const item=args.itemDefs[instance.itemId];
+  if(!item||!isEquipmentSlot(item.slot))throw new Error('invalid equipment slot');
+  const requirement=canEquip(args.character,item);
+  if(!requirement.ok)throw new Error(requirement.reasons.join(','));
+  return {
+    loadout:{...args.loadout,[item.slot]:instance.instanceId},
+    slot:item.slot
+  };
+}
+
+export function unequipSlot(
+  loadout:EquipmentLoadoutState,
+  slot:EquipmentSlot
+):EquipmentLoadoutState{
+  return {...loadout,[slot]:null};
+}
+
+export function equipmentStatTotals(
+  loadout:EquipmentLoadoutState,
+  inventory:InventoryState
+):Record<string,number>{
+  const totals:Record<string,number>={};
+  for(const slot of EQUIPMENT_SLOTS){
+    const instance=equippedInstance(loadout,inventory,slot);
+    if(!instance)continue;
+    for(const [stat,value] of Object.entries(instance.stats)){
+      totals[stat]=(totals[stat]??0)+value;
+    }
+    for(const property of instance.properties){
+      totals[property.stat]=(totals[property.stat]??0)+property.value;
+    }
+  }
+  return totals;
+}
+
+export function validateEquipmentLoadout(
+  loadout:EquipmentLoadoutState,
+  inventory:InventoryState,
+  itemDefs:Record<string,ItemDefinition>,
+  character?:EquipCharacter
+):boolean{
+  const keys=Object.keys(loadout);
+  if(keys.length!==EQUIPMENT_SLOTS.length)return false;
+  if(!keys.every(key=>isEquipmentSlot(key)))return false;
+  const used=new Set<string>();
+  for(const slot of EQUIPMENT_SLOTS){
+    const id=loadout[slot];
+    if(id===null)continue;
+    if(typeof id!=='string'||used.has(id))return false;
+    const instance=(inventory.equipment??[]).find(entry=>entry.instanceId===id);
+    if(!instance)return false;
+    const item=itemDefs[instance.itemId];
+    if(!item||item.slot!==slot)return false;
+    if(character&&!canEquip(character,item).ok)return false;
+    used.add(id);
+  }
+  return true;
+}
+
+export function pruneInvalidEquipmentLoadout(args:{
+  loadout:EquipmentLoadoutState;
+  inventory:InventoryState;
+  itemDefs:Record<string,ItemDefinition>;
+  character:EquipCharacter;
+}):EquipmentLoadoutState{
+  const next=createDefaultEquipmentLoadout();
+  for(const slot of EQUIPMENT_SLOTS){
+    const id=args.loadout[slot];
+    next[slot]=id??null;
+    if(!id)continue;
+    const instance=(args.inventory.equipment??[]).find(
+      entry=>entry.instanceId===id
+    );
+    const item=instance?args.itemDefs[instance.itemId]:undefined;
+    if(!instance||!item||item.slot!==slot||!canEquip(args.character,item).ok){
+      next[slot]=null;
+    }
+  }
+  return next;
+}
+
+
+export function equipmentStatValues(
+  loadout:EquipmentLoadoutState,
+  inventory:InventoryState,
+  stat:string
+):number[]{
+  const values:number[]=[];
+  for(const slot of EQUIPMENT_SLOTS){
+    const instance=equippedInstance(loadout,inventory,slot);
+    if(!instance)continue;
+    const base=instance.stats[stat];
+    if(typeof base==='number')values.push(base);
+    for(const property of instance.properties){
+      if(property.stat===stat)values.push(property.value);
+    }
+  }
+  return values;
 }

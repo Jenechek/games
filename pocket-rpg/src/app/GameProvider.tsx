@@ -53,7 +53,19 @@ import { injuryPenaltySummary } from '../game-core/injuries/injuries';
 import type { InventoryState } from '../game-core/items/inventory';
 import { addInventoryStack, normalizedStackClass, removeInventoryStack } from '../game-core/items/inventory';
 import { itemDefs } from '../content/items';
-import { createEquipmentInstance, createLegacyEquipmentInstance } from '../game-core/items/equipment';
+import {
+  createEquipmentInstance,
+  createLegacyEquipmentInstance,
+  EQUIPMENT_SLOTS,
+  equipInstance as equipLoadoutInstance,
+  equipmentStatTotals,
+  equipmentStatValues,
+  equippedInstance,
+  isEquippedInstance,
+  pruneInvalidEquipmentLoadout,
+  unequipSlot,
+  type EquipmentSlot
+} from '../game-core/items/equipment';
 import {
   craftRecipeBatch,
   rerollEquipment,
@@ -105,9 +117,10 @@ import type { PlayerClassId } from '../game-core/classes/types';
 import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
 import {
-  applyShortSwordAttackProgression,
-  shortSwordDamageMultiplier
+  applyWeaponAttackProgression,
+  weaponDamageMultiplier
 } from '../game-core/combat/progression';
+import {combineDiminishingPercentages} from '../game-core/combat/mitigation';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -141,6 +154,8 @@ interface Commands {
   buy(id:string,quantity:number):void;
   sellStack(id:string,itemClass:number,quantity:number):void;
   sellEquipment(instanceId:string):void;
+  equipEquipment(instanceId:string):void;
+  unequipEquipment(slot:EquipmentSlot):void;
   useInjuryMedicine(tier:InjuryMedicineTier):void;
   craft(recipeId:string,quantity:number,policy?:MaterialPolicy):void;
   upgradeEquipment(instanceId:string):void;
@@ -203,6 +218,43 @@ function awardCharacterXp(
   };
 }
 
+function skillLevelMap(state:RuntimeState):Record<string,number>{
+  return Object.fromEntries(
+    Object.entries(state.skillProgression).map(([id,skill])=>[id,skill.level])
+  );
+}
+
+function loadoutStats(state:RuntimeState):Record<string,number>{
+  return equipmentStatTotals(state.equipmentLoadout,state.inventory);
+}
+
+function loadoutMitigation(state:RuntimeState):number{
+  return combineDiminishingPercentages(
+    equipmentStatValues(state.equipmentLoadout,state.inventory,'mitigation')
+  );
+}
+
+function equippedWeaponSkillPath(state:RuntimeState):string[]{
+  const weapon=equippedInstance(
+    state.equipmentLoadout,
+    state.inventory,
+    'mainHand'
+  );
+  return weapon?itemDefs[weapon.itemId]?.skillPath??[]:[];
+}
+
+function stateLoadRatio(
+  state:RuntimeState,
+  inventory=state.inventory
+):number{
+  const stats=equipmentStatTotals(state.equipmentLoadout,inventory);
+  return currentLoadRatio(
+    inventory,
+    state.attributes,
+    stats.capacity??0
+  );
+}
+
 function awardCombatProgression(
   state:RuntimeState,
   enemyLevel:number,
@@ -224,14 +276,22 @@ function applyWeaponCombatProgression(
   const attack=log.find(entry=>
     entry.phase==='player-main'&&entry.action==='attack'
   );
-  if(!attack)return state;
+  const skillPath=equippedWeaponSkillPath(state);
+  if(!attack||skillPath.length===0)return state;
 
-  const beforeMultiplier=shortSwordDamageMultiplier(state.skillProgression);
-  const skillProgression=applyShortSwordAttackProgression(
+  const beforeMultiplier=weaponDamageMultiplier(
     state.skillProgression,
+    skillPath
+  );
+  const skillProgression=applyWeaponAttackProgression(
+    state.skillProgression,
+    skillPath,
     attack.success===true
   );
-  const afterMultiplier=shortSwordDamageMultiplier(skillProgression);
+  const afterMultiplier=weaponDamageMultiplier(
+    skillProgression,
+    skillPath
+  );
 
   return {
     ...state,
@@ -261,19 +321,25 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
     playerClasses,
     summonDefinitions
   );
+  const stats=loadoutStats(state);
+  const weaponSkillPath=equippedWeaponSkillPath(state);
+  const hasShield=(stats.blockChance??0)>0;
   return {
     round:1,
     player:{
       id:'player',hp:playerMaxHp,maxHp:playerMaxHp,
       mana:100,maxMana:100,stamina:100,maxStamina:100,
-      stunned:false,shieldBlock:0,
-      parry:.1*penalties.blockParryMultiplier,
-      evasion:.08,
-      accuracy:Math.max(0,.85-penalties.accuracyPenalty),
-      damage:18
+      stunned:false,
+      shieldBlock:stats.blockChance??0,
+      hasShield,
+      parry:(.1+(stats.parry??0))*penalties.blockParryMultiplier,
+      evasion:.08+(stats.evasion??0),
+      accuracy:Math.max(0,.85+(stats.accuracy??0)-penalties.accuracyPenalty),
+      damage:(18+(stats.damage??0))
         *penalties.physicalAttackMultiplier
         *(classDef?.personalDamageMultiplier??1)
-        *shortSwordDamageMultiplier(state.skillProgression),
+        *weaponDamageMultiplier(state.skillProgression,weaponSkillPath),
+      damageMitigation:loadoutMitigation(state),
       style:'balanced',
       toxicity:0,
       effects:[]
@@ -281,7 +347,7 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
     enemy:{
       id:e.id,hp:scaled.maxHp,maxHp:scaled.maxHp,
       mana:50,maxMana:50,stamina:100,maxStamina:100,
-      stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,style:'balanced',
+      stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,damageMitigation:0,style:'balanced',
       toxicity:0,effects:[]
     },
     summons:prepareSummonsForCombat(state.summons,effectiveSummons,now)
@@ -317,6 +383,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           summons:restored.summons,
           classState:restored.classState,
           skillProgression:restored.skillProgression,
+          equipmentLoadout:restored.equipmentLoadout,
           fishingSkill:{...restored.skillProgression.fishing},
           farmingWork:null,
           gatheringSession:null
@@ -341,16 +408,33 @@ export function GameProvider({children}:{children:React.ReactNode}){
         university:state.university,
         summons:state.summons,
         classState:state.classState,
-        skillProgression:state.skillProgression
+        skillProgression:state.skillProgression,
+        equipmentLoadout:state.equipmentLoadout
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons,state.classState,state.skillProgression]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons,state.classState,state.skillProgression,state.equipmentLoadout]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
       const now=Date.now();
       let n:RuntimeState={...s,...tickGame(s,now)};
+      const prunedLoadout=pruneInvalidEquipmentLoadout({
+        loadout:n.equipmentLoadout,
+        inventory:n.inventory,
+        itemDefs,
+        character:{
+          attributes:n.attributes,
+          skills:skillLevelMap(n)
+        }
+      });
+      if(EQUIPMENT_SLOTS.some(slot=>prunedLoadout[slot]!==n.equipmentLoadout[slot])){
+        n={
+          ...n,
+          equipmentLoadout:prunedLoadout,
+          log:[...n.log,'Предмет снят: требования экипировки больше не выполнены.']
+        };
+      }
       if(!n.combat){
         const effectiveSummons=effectiveSummonDefinitions(
           n.classState,
@@ -393,7 +477,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         };
         n=awardCharacterXp(n,farmingCharacterXp,'farming');
 
-        if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
+        if(stateLoadRatio(n)>=1.2){
           n={
             ...n,
             farmingWork:null,
@@ -427,9 +511,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
           n.world.locationId,
           n.attributes.luck,
           0,
-          results=>currentLoadRatio(
-            applyGatheringResults(n.inventory,results),
-            n.attributes
+          results=>stateLoadRatio(
+            n,
+            applyGatheringResults(n.inventory,results)
           )<1.2
         );
         const inventory=applyGatheringResults(n.inventory,gathered.results);
@@ -453,7 +537,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           0
         );
         n=awardCharacterXp(n,gatheringCharacterXp,'gathering');
-        if(currentLoadRatio(n.inventory,n.attributes)>=1.2){
+        if(stateLoadRatio(n)>=1.2){
           n={...n,gatheringSession:null,log:[...n.log,'Сбор остановлен: перегруз достиг 120%.']};
         }
       }
@@ -465,7 +549,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           rng.current,
           n.world.locationId,
           n.attributes.luck,
-          inventory=>currentLoadRatio(inventory,n.attributes)<1.2
+          inventory=>stateLoadRatio(n,inventory)<1.2
         );
         n={
           ...f.state,
@@ -533,7 +617,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     travelTo(id){
       setState(s=>{
         if(!canPerformAction(s.injuries,'travel',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя путешествовать: персонаж восстанавливается.']};
-        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        const ratio=stateLoadRatio(s);
         return{...s,...travelCommand(s,id,Date.now(),rng.current,ratio),fishing:null,farmingWork:null,gatheringSession:null};
       });
     },
@@ -625,7 +709,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     startFishingCmd(){
       setState(s=>{
         const now=Date.now();
-        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        const ratio=stateLoadRatio(s);
         if(!canStartFishingAction(s.injuries,Boolean(s.combat),Boolean(s.farmingWork),ratio,now)){
           return{...s,log:[...s.log,'Сейчас нельзя рыбачить.']};
         }
@@ -642,7 +726,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canStartFarmingAction(
           s.injuries,
           Boolean(s.combat),
-          currentLoadRatio(s.inventory,s.attributes),
+          stateLoadRatio(s),
           Date.now()
         ))return{...s,log:[...s.log,'Сейчас нельзя работать на поле.']};
         if(s.farmingWork)return s;
@@ -662,7 +746,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canStartFarmingAction(
           s.injuries,
           Boolean(s.combat),
-          currentLoadRatio(s.inventory,s.attributes),
+          stateLoadRatio(s),
           Date.now()
         )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
@@ -690,7 +774,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canStartFarmingAction(
           s.injuries,
           Boolean(s.combat),
-          currentLoadRatio(s.inventory,s.attributes),
+          stateLoadRatio(s),
           Date.now()
         )||s.farmingWork)return s;
         const field=s.farming.fields.find(candidate=>candidate.id===fieldId);
@@ -724,7 +808,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
     startGatheringCmd(focus){
       setState(s=>{
         const now=Date.now();
-        const ratio=currentLoadRatio(s.inventory,s.attributes);
+        const ratio=stateLoadRatio(s);
         if(!canStartGatheringAction(s.injuries,Boolean(s.combat),Boolean(s.farmingWork),ratio,now)){
           return{...s,log:[...s.log,'Сейчас нельзя заниматься сбором ресурсов.']};
         }
@@ -867,6 +951,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!city||s.combat||!canPerformAction(s.injuries,'merchant',now))return s;
         const instance=(s.inventory.equipment??[]).find(entry=>entry.instanceId===instanceId);
         if(!instance)return s;
+        if(isEquippedInstance(s.equipmentLoadout,instanceId)){
+          return{...s,log:[...s.log,'Сначала снимите предмет перед продажей.']};
+        }
         try{
           const quote=equipmentSellQuote(
             s.economy,
@@ -894,6 +981,51 @@ export function GameProvider({children}:{children:React.ReactNode}){
         }catch{
           return{...s,log:[...s.log,'Эту экипировку нельзя продать здесь.']};
         }
+      });
+    },
+    equipEquipment(instanceId){
+      setState(s=>{
+        if(s.combat){
+          return{...s,log:[...s.log,'Нельзя менять экипировку во время боя.']};
+        }
+        try{
+          const result=equipLoadoutInstance({
+            loadout:s.equipmentLoadout,
+            inventory:s.inventory,
+            instanceId,
+            itemDefs,
+            character:{
+              attributes:s.attributes,
+              skills:skillLevelMap(s)
+            }
+          });
+          const instance=(s.inventory.equipment??[]).find(
+            entry=>entry.instanceId===instanceId
+          );
+          return{
+            ...s,
+            equipmentLoadout:result.loadout,
+            log:[
+              ...s.log,
+              `Экипировано: ${itemDefs[instance?.itemId??'']?.label??instanceId}.`
+            ]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Требования предмета не выполнены.']};
+        }
+      });
+    },
+    unequipEquipment(slot){
+      setState(s=>{
+        if(s.combat){
+          return{...s,log:[...s.log,'Нельзя менять экипировку во время боя.']};
+        }
+        if(!s.equipmentLoadout[slot])return s;
+        return{
+          ...s,
+          equipmentLoadout:unequipSlot(s.equipmentLoadout,slot),
+          log:[...s.log,'Предмет снят.']
+        };
       });
     },
     useInjuryMedicine(tier){

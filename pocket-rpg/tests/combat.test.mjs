@@ -122,3 +122,42 @@ test('stunned player produces no weapon action log entry',()=>{
   );
   assert.equal(result.log.some(x=>x.phase==='player-main'),false);
 });
+
+
+test('direct physical mitigation reduces damage after hit',()=>{
+  const state=baseCombat();
+  state.player.damageMitigation=0.2;
+  const rng={chance:p=>p===0.1?false:true};
+  const result=resolveRound(
+    state,
+    {player:{main:{type:'wait'}},enemy:{main:{type:'attack'}}},
+    rng
+  );
+  assert.equal(result.state.player.hp,92);
+});
+
+test('player mitigation does not reduce damage intercepted by summon',()=>{
+  const state=baseCombat();
+  state.player.damageMitigation=0.5;
+  state.summons=[{
+    instanceId:'summon-1',
+    definitionId:'guardian-elemental',
+    hp:90,maxHp:90,
+    stamina:80,maxStamina:80,
+    summonedAt:0,recoveryUpdatedAt:0,
+    damage:1,accuracy:0,evasion:0,
+    interceptChance:1,
+    attackStaminaCost:15,
+    staminaRecoveryPerRound:12,
+    role:'guardian',
+    passiveImmunities:[]
+  }];
+  const rng={chance:p=>p===0.1?false:true};
+  const result=resolveRound(
+    state,
+    {player:{main:{type:'wait'}},enemy:{main:{type:'attack'}}},
+    rng
+  );
+  assert.equal(result.state.player.hp,100);
+  assert.equal(result.state.summons[0].hp,80);
+});

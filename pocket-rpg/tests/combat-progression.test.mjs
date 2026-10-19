@@ -4,7 +4,9 @@ import {
   COMBAT_DOMAIN_XP_WEIGHTS,
   SHORT_SWORD_SKILL_CHAIN,
   applyShortSwordAttackProgression,
-  shortSwordDamageMultiplier
+  applyWeaponAttackProgression,
+  shortSwordDamageMultiplier,
+  weaponDamageMultiplier
 } from '../dist/game-core/combat/progression.js';
 import {createDefaultSkillProgression} from '../dist/game-core/progression/skill-progress.js';
 
@@ -64,4 +66,23 @@ test('combat weapon action does not leak XP into peaceful skills',()=>{
   for(const id of ['fishing','farming','gathering','crafting','alchemy','trading','diplomacy']){
     assert.deepEqual(next[id],start[id]);
   }
+});
+
+
+test('unarmed attack has no weapon skill path progression or multiplier',()=>{
+  const start=createDefaultSkillProgression();
+  const next=applyWeaponAttackProgression(start,undefined,true);
+  assert.equal(next,start);
+  assert.equal(weaponDamageMultiplier(start,undefined),1);
+});
+
+test('declared short sword item path routes through the same progression chain',()=>{
+  const start=createDefaultSkillProgression();
+  const next=applyWeaponAttackProgression(
+    start,
+    ['weapons','one-handed','swords','short-sword'],
+    true
+  );
+  assert.ok(Math.abs(next.weapons.xp-20)<1e-10);
+  assert.ok(Math.abs(next['short-sword'].xp-89.8425)<1e-10);
 });

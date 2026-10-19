@@ -11,7 +11,8 @@ import type {
   LegacyGameStateV9,
   LegacyGameStateV10,
   LegacyGameStateV11,
-  LegacyGameStateV12
+  LegacyGameStateV12,
+  LegacyGameStateV13
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -35,12 +36,15 @@ import type {
 } from '../game-core/progression/skill-progress.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
 import { createDefaultClassState } from '../game-core/classes/classes.js';
+import { createDefaultEquipmentLoadout,pruneInvalidEquipmentLoadout } from '../game-core/items/equipment.js';
 import { starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV13 } from './schema.js';
+import { itemDefs } from '../content/items.js';
+import type { SaveEnvelopeV14 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
 type SaveInput=
   |GameState
+  |LegacyGameStateV13
   |LegacyGameStateV12
   |LegacyGameStateV11
   |LegacyGameStateV10
@@ -75,38 +79,63 @@ function persistentCharacter(
 function finalizeState(
   state:LegacyGameStateV11,
   progression?:SkillProgressionState|LegacySkillProgressionStateV12
-):GameState{
+):LegacyGameStateV13{
   const skillProgression=progression
-    ?('weapons' in progression?progression:upgradeSkillProgressionV12(progression))
+    ?('weapons' in progression
+      ?progression
+      :upgradeSkillProgressionV12(progression))
     :collectLegacySkillProgression({
-    farming:state.farming,
-    gathering:state.gathering,
-    crafting:state.crafting,
-    economy:state.economy,
-    diplomacy:state.diplomacy
-  });
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting,
+      economy:state.economy,
+      diplomacy:state.diplomacy
+    });
   const synchronized=synchronizeSkillMirrors(state,skillProgression);
   return {...synchronized,skillProgression};
 }
 
+function withEmptyLoadout(state:LegacyGameStateV13):GameState{
+  return {...state,equipmentLoadout:createDefaultEquipmentLoadout()};
+}
+
 function normalizeState(state:SaveInput):GameState{
+  if('equipmentLoadout' in state){
+    const finalized=finalizeState(state,state.skillProgression);
+    const skills=Object.fromEntries(
+      Object.entries(finalized.skillProgression).map(([id,skill])=>[id,skill.level])
+    );
+    return {
+      ...finalized,
+      equipmentLoadout:pruneInvalidEquipmentLoadout({
+        loadout:state.equipmentLoadout,
+        inventory:finalized.inventory,
+        itemDefs,
+        character:{
+          attributes:finalized.character.attributes,
+          skills
+        }
+      })
+    };
+  }
+
   if('skillProgression' in state){
-    return finalizeState(state,state.skillProgression);
+    return withEmptyLoadout(finalizeState(state,state.skillProgression));
   }
 
   if('classState' in state){
-    return finalizeState({
+    return withEmptyLoadout(finalizeState({
       ...state,
       character:persistentCharacter(state.character),
       inventory:{
         stacks:state.inventory.stacks.map(stack=>({...stack})),
         equipment:[...(state.inventory.equipment??[])]
       }
-    });
+    }));
   }
 
   if('summons' in state){
-    return finalizeState({
+    return withEmptyLoadout(finalizeState({
       ...state,
       character:persistentCharacter(state.character),
       inventory:{
@@ -114,11 +143,11 @@ function normalizeState(state:SaveInput):GameState{
         equipment:[...(state.inventory.equipment??[])]
       },
       classState:createDefaultClassState()
-    });
+    }));
   }
 
   if('university' in state){
-    return finalizeState({
+    return withEmptyLoadout(finalizeState({
       ...state,
       character:persistentCharacter(state.character),
       inventory:{
@@ -127,11 +156,11 @@ function normalizeState(state:SaveInput):GameState{
       },
       summons:createDefaultSummonRoster(),
       classState:createDefaultClassState()
-    });
+    }));
   }
 
   if('diplomacy' in state){
-    return finalizeState({
+    return withEmptyLoadout(finalizeState({
       ...state,
       character:persistentCharacter(state.character),
       inventory:{
@@ -141,11 +170,11 @@ function normalizeState(state:SaveInput):GameState{
       university:createDefaultUniversityState(),
       summons:createDefaultSummonRoster(),
       classState:createDefaultClassState()
-    });
+    }));
   }
 
   if('economy' in state){
-    return finalizeState({
+    return withEmptyLoadout(finalizeState({
       ...state,
       character:persistentCharacter(state.character),
       inventory:{
@@ -156,11 +185,11 @@ function normalizeState(state:SaveInput):GameState{
       university:createDefaultUniversityState(),
       summons:createDefaultSummonRoster(),
       classState:createDefaultClassState()
-    });
+    }));
   }
 
   if('crafting' in state){
-    return finalizeState({
+    return withEmptyLoadout(finalizeState({
       ...state,
       character:persistentCharacter(state.character),
       inventory:{
@@ -172,11 +201,11 @@ function normalizeState(state:SaveInput):GameState{
       university:createDefaultUniversityState(),
       summons:createDefaultSummonRoster(),
       classState:createDefaultClassState()
-    });
+    }));
   }
 
   const upgraded=upgradeLegacyInventory(state.inventory);
-  return finalizeState({
+  return withEmptyLoadout(finalizeState({
     character:persistentCharacter(state.character),
     world:state.world,
     inventory:upgraded.inventory,
@@ -192,12 +221,12 @@ function normalizeState(state:SaveInput):GameState{
     university:createDefaultUniversityState(),
     summons:createDefaultSummonRoster(),
     classState:createDefaultClassState()
-  });
+  }));
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV13={
-    schemaVersion:13,
+  const envelope:SaveEnvelopeV14={
+    schemaVersion:14,
     savedAt,
     state:normalizeState(state)
   };
@@ -219,7 +248,11 @@ export class IndexedDbSaveStore{
   private async db():Promise<IDBDatabase>{
     return await new Promise((resolve,reject)=>{
       const req=indexedDB.open(this.dbName,1);
-      req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('saves'))req.result.createObjectStore('saves');};
+      req.onupgradeneeded=()=>{
+        if(!req.result.objectStoreNames.contains('saves')){
+          req.result.createObjectStore('saves');
+        }
+      };
       req.onsuccess=()=>resolve(req.result);
       req.onerror=()=>reject(req.error);
     });

@@ -23,6 +23,7 @@ export interface ItemDefinition {
   label:string;
   weight:number;
   slot?:string;
+  skillPath?:string[];
   requirements?:ItemRequirements;
   stats?:Record<string,number>;
   rarity?:ItemRarity;

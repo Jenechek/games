@@ -22,6 +22,7 @@ export interface CombatantState {
   evasion:number;
   accuracy:number;
   damage:number;
+  damageMitigation?:number;
   style?:CombatStyle;
   hasShield?:boolean;
   toxicity?:number;

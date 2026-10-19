@@ -5,7 +5,10 @@ import {
   multiplicativeSkillMultiplier,
   skillPrimaryBonus
 } from '../progression/skill-tree.js';
-import type { SkillProgressionState } from '../progression/skill-progress.js';
+import type {
+  PersistedSkillId,
+  SkillProgressionState
+} from '../progression/skill-progress.js';
 
 export const COMBAT_DOMAIN_XP_WEIGHTS={
   weapon:1,
@@ -19,30 +22,60 @@ export const SHORT_SWORD_SKILL_CHAIN=[
   'one-handed',
   'swords',
   'short-sword'
-] as const;
+] as const satisfies readonly PersistedSkillId[];
 
-const SHORT_SWORD_USES=SHORT_SWORD_SKILL_CHAIN.map(skillId=>({
-  skillId,
-  weight:COMBAT_DOMAIN_XP_WEIGHTS.weapon
-}));
+export function normalizedWeaponSkillPath(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):PersistedSkillId[]{
+  if(!skillPath)return [];
+  return skillPath.filter(
+    (id):id is PersistedSkillId=>Object.prototype.hasOwnProperty.call(progression,id)
+  );
+}
+
+export function weaponDamageMultiplier(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  const path=normalizedWeaponSkillPath(progression,skillPath);
+  return multiplicativeSkillMultiplier(
+    path.map(id=>skillPrimaryBonus(progression[id].level))
+  );
+}
+
+export function applyWeaponAttackProgression(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined,
+  success:boolean
+):SkillProgressionState{
+  const path=normalizedWeaponSkillPath(progression,skillPath);
+  if(path.length===0)return progression;
+  const baseXp=actionXp(success);
+  return applyWeightedSkillUse(
+    progression,
+    skills,
+    path.map(skillId=>({
+      skillId,
+      weight:COMBAT_DOMAIN_XP_WEIGHTS.weapon
+    })),
+    baseXp
+  ) as SkillProgressionState;
+}
 
 export function shortSwordDamageMultiplier(
   progression:SkillProgressionState
 ):number{
-  return multiplicativeSkillMultiplier(
-    SHORT_SWORD_SKILL_CHAIN.map(id=>skillPrimaryBonus(progression[id].level))
-  );
+  return weaponDamageMultiplier(progression,SHORT_SWORD_SKILL_CHAIN);
 }
 
 export function applyShortSwordAttackProgression(
   progression:SkillProgressionState,
   success:boolean
 ):SkillProgressionState{
-  const baseXp=actionXp(success);
-  return applyWeightedSkillUse(
+  return applyWeaponAttackProgression(
     progression,
-    skills,
-    SHORT_SWORD_USES,
-    baseXp
-  ) as SkillProgressionState;
+    SHORT_SWORD_SKILL_CHAIN,
+    success
+  );
 }

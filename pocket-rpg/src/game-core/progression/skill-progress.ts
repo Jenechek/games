@@ -38,18 +38,32 @@ export const BLOCKING_SKILL_IDS=[
   'shields'
 ] as const;
 
-export const PERSISTED_SKILL_IDS=[
+export const LEGACY_PERSISTED_SKILL_IDS_V15=[
   ...LEGACY_PERSISTED_SKILL_IDS_V14,
   ...ARMOR_SKILL_IDS,
   ...BLOCKING_SKILL_IDS
 ] as const;
 
+export const MAGIC_SKILL_IDS=[
+  'magic',
+  'arcane',
+  'concentration',
+  'arcane-focus'
+] as const;
+
+export const PERSISTED_SKILL_IDS=[
+  ...LEGACY_PERSISTED_SKILL_IDS_V15,
+  ...MAGIC_SKILL_IDS
+] as const;
+
 export type LegacyPersistedSkillIdV12=typeof LEGACY_PERSISTED_SKILL_IDS_V12[number];
 export type LegacyPersistedSkillIdV14=typeof LEGACY_PERSISTED_SKILL_IDS_V14[number];
+export type LegacyPersistedSkillIdV15=typeof LEGACY_PERSISTED_SKILL_IDS_V15[number];
 export type PersistedSkillId=typeof PERSISTED_SKILL_IDS[number];
 
 export type LegacySkillProgressionStateV12=Record<LegacyPersistedSkillIdV12,SkillState>;
 export type LegacySkillProgressionStateV14=Record<LegacyPersistedSkillIdV14,SkillState>;
+export type LegacySkillProgressionStateV15=Record<LegacyPersistedSkillIdV15,SkillState>;
 export type SkillProgressionState=Record<PersistedSkillId,SkillState>;
 
 function zeroSkill():SkillState{
@@ -63,6 +77,15 @@ function defenseDefaults(){
     'light-armor':zeroSkill(),
     'heavy-armor':zeroSkill(),
     shields:zeroSkill()
+  };
+}
+
+function magicDefaults(){
+  return {
+    magic:zeroSkill(),
+    arcane:zeroSkill(),
+    concentration:zeroSkill(),
+    'arcane-focus':zeroSkill()
   };
 }
 
@@ -92,7 +115,8 @@ export function collectLegacySkillProgression(args:{
     'one-handed':zeroSkill(),
     swords:zeroSkill(),
     'short-sword':zeroSkill(),
-    ...defenseDefaults()
+    ...defenseDefaults(),
+    ...magicDefaults()
   };
 }
 
@@ -111,7 +135,8 @@ export function upgradeSkillProgressionV12(
     'one-handed':zeroSkill(),
     swords:zeroSkill(),
     'short-sword':zeroSkill(),
-    ...defenseDefaults()
+    ...defenseDefaults(),
+    ...magicDefaults()
   };
 }
 
@@ -130,7 +155,32 @@ export function upgradeSkillProgressionV14(
     'one-handed':{...legacy['one-handed']},
     swords:{...legacy.swords},
     'short-sword':{...legacy['short-sword']},
-    ...defenseDefaults()
+    ...defenseDefaults(),
+    ...magicDefaults()
+  };
+}
+
+export function upgradeSkillProgressionV15(
+  legacy:LegacySkillProgressionStateV15
+):SkillProgressionState{
+  return {
+    fishing:{...legacy.fishing},
+    farming:{...legacy.farming},
+    gathering:{...legacy.gathering},
+    crafting:{...legacy.crafting},
+    alchemy:{...legacy.alchemy},
+    trading:{...legacy.trading},
+    diplomacy:{...legacy.diplomacy},
+    weapons:{...legacy.weapons},
+    'one-handed':{...legacy['one-handed']},
+    swords:{...legacy.swords},
+    'short-sword':{...legacy['short-sword']},
+    armor:{...legacy.armor},
+    'body-armor':{...legacy['body-armor']},
+    'light-armor':{...legacy['light-armor']},
+    'heavy-armor':{...legacy['heavy-armor']},
+    shields:{...legacy.shields},
+    ...magicDefaults()
   };
 }
 

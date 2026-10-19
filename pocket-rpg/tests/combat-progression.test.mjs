@@ -437,3 +437,28 @@ test('auto magic falls through locked or unaffordable higher priority spells',()
     focusRoundsRemaining:0,wardRoundsRemaining:0
   }),'arcane-focus');
 });
+
+test('arcane bolt requires magic 35 and 25 mana, while auto spell prioritizes healing',()=>{
+  const bolt=magicSpells['arcane-bolt'];
+  assert.equal(bolt.manaCost,25);
+  assert.equal(bolt.effect.kind,'damage');
+  assert.equal(bolt.effect.baseAmount,18);
+  assert.deepEqual(bolt.skillPath,['magic','arcane','concentration']);
+  assert.equal(canCastMagicSpell(bolt,{magicLevel:34,mana:100,hp:100,maxHp:100}),false);
+  assert.equal(canCastMagicSpell(bolt,{magicLevel:35,mana:24,hp:100,maxHp:100}),false);
+  assert.equal(canCastMagicSpell(bolt,{magicLevel:35,mana:25,hp:100,maxHp:100}),true);
+  assert.equal(chooseMageAutoSpellId({magicLevel:35,mana:100,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2}),'arcane-bolt');
+  assert.equal(chooseMageAutoSpellId({magicLevel:35,mana:100,hp:30,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2}),'arcane-mend');
+  assert.equal(chooseMageAutoSpellId({magicLevel:35,mana:24,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2}),null);
+});
+
+test('arcane bolt advances only its existing arcane skill ancestors',()=>{
+  const before=createDefaultSkillProgression();
+  const after=applyMagicActionProgression(before,magicSpells['arcane-bolt'].skillPath,true);
+  assert.ok(Math.abs(after.magic.xp-6)<1e-10);
+  assert.ok(Math.abs(after.arcane.xp-9.9)<1e-10);
+  assert.ok(Math.abs(after.concentration.xp-16.335)<1e-10);
+  assert.deepEqual(after['arcane-focus'],before['arcane-focus']);
+  assert.deepEqual(after.restoration,before.restoration);
+  assert.deepEqual(after.protection,before.protection);
+});

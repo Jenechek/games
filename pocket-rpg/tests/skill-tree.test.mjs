@@ -76,7 +76,7 @@ test('skill bonus is point two percent per level and caps at twenty percent',()=
   assert.equal(skillPrimaryBonus(50),0.1);
   assert.equal(skillPrimaryBonus(100),0.2);
   assert.equal(skillPrimaryBonus(999),0.2);
-  assert.equal(siblingSpilloverBonus(100),0.02);
+  assert.ok(Math.abs(siblingSpilloverBonus(100)-0.02)<1e-10);
 });
 
 test('applicable skill bonuses stack multiplicatively',()=>{

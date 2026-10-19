@@ -322,6 +322,11 @@ function magicSpellAction(
     maxHp:state.combat.player.maxHp
   }))return null;
 
+  if(spell.effect.kind==='damage'){
+    return {type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,
+      effect:{kind:'damage',amount:applyMagicEffectSkill(spell.effect.baseAmount,state.skillProgression,spell.skillPath)}};
+  }
+
   if(spell.effect.kind==='heal'){
     return {
       type:'magic',

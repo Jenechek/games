@@ -44,11 +44,30 @@ export const LEGACY_PERSISTED_SKILL_IDS_V15=[
   ...BLOCKING_SKILL_IDS
 ] as const;
 
-export const MAGIC_SKILL_IDS=[
+export const LEGACY_MAGIC_SKILL_IDS_V16=[
   'magic',
   'arcane',
   'concentration',
   'arcane-focus'
+] as const;
+
+export const LEGACY_PERSISTED_SKILL_IDS_V16=[
+  ...LEGACY_PERSISTED_SKILL_IDS_V15,
+  ...LEGACY_MAGIC_SKILL_IDS_V16
+] as const;
+
+export const EXPANDED_MAGIC_SKILL_IDS=[
+  'restoration',
+  'healing',
+  'arcane-mend',
+  'protection',
+  'warding',
+  'arcane-ward'
+] as const;
+
+export const MAGIC_SKILL_IDS=[
+  ...LEGACY_MAGIC_SKILL_IDS_V16,
+  ...EXPANDED_MAGIC_SKILL_IDS
 ] as const;
 
 export const PERSISTED_SKILL_IDS=[
@@ -59,11 +78,13 @@ export const PERSISTED_SKILL_IDS=[
 export type LegacyPersistedSkillIdV12=typeof LEGACY_PERSISTED_SKILL_IDS_V12[number];
 export type LegacyPersistedSkillIdV14=typeof LEGACY_PERSISTED_SKILL_IDS_V14[number];
 export type LegacyPersistedSkillIdV15=typeof LEGACY_PERSISTED_SKILL_IDS_V15[number];
+export type LegacyPersistedSkillIdV16=typeof LEGACY_PERSISTED_SKILL_IDS_V16[number];
 export type PersistedSkillId=typeof PERSISTED_SKILL_IDS[number];
 
 export type LegacySkillProgressionStateV12=Record<LegacyPersistedSkillIdV12,SkillState>;
 export type LegacySkillProgressionStateV14=Record<LegacyPersistedSkillIdV14,SkillState>;
 export type LegacySkillProgressionStateV15=Record<LegacyPersistedSkillIdV15,SkillState>;
+export type LegacySkillProgressionStateV16=Record<LegacyPersistedSkillIdV16,SkillState>;
 export type SkillProgressionState=Record<PersistedSkillId,SkillState>;
 
 function zeroSkill():SkillState{
@@ -85,7 +106,13 @@ function magicDefaults(){
     magic:zeroSkill(),
     arcane:zeroSkill(),
     concentration:zeroSkill(),
-    'arcane-focus':zeroSkill()
+    'arcane-focus':zeroSkill(),
+    restoration:zeroSkill(),
+    healing:zeroSkill(),
+    'arcane-mend':zeroSkill(),
+    protection:zeroSkill(),
+    warding:zeroSkill(),
+    'arcane-ward':zeroSkill()
   };
 }
 
@@ -181,6 +208,39 @@ export function upgradeSkillProgressionV15(
     'heavy-armor':{...legacy['heavy-armor']},
     shields:{...legacy.shields},
     ...magicDefaults()
+  };
+}
+
+export function upgradeSkillProgressionV16(
+  legacy:LegacySkillProgressionStateV16
+):SkillProgressionState{
+  return {
+    fishing:{...legacy.fishing},
+    farming:{...legacy.farming},
+    gathering:{...legacy.gathering},
+    crafting:{...legacy.crafting},
+    alchemy:{...legacy.alchemy},
+    trading:{...legacy.trading},
+    diplomacy:{...legacy.diplomacy},
+    weapons:{...legacy.weapons},
+    'one-handed':{...legacy['one-handed']},
+    swords:{...legacy.swords},
+    'short-sword':{...legacy['short-sword']},
+    armor:{...legacy.armor},
+    'body-armor':{...legacy['body-armor']},
+    'light-armor':{...legacy['light-armor']},
+    'heavy-armor':{...legacy['heavy-armor']},
+    shields:{...legacy.shields},
+    magic:{...legacy.magic},
+    arcane:{...legacy.arcane},
+    concentration:{...legacy.concentration},
+    'arcane-focus':{...legacy['arcane-focus']},
+    restoration:zeroSkill(),
+    healing:zeroSkill(),
+    'arcane-mend':zeroSkill(),
+    protection:zeroSkill(),
+    warding:zeroSkill(),
+    'arcane-ward':zeroSkill()
   };
 }
 

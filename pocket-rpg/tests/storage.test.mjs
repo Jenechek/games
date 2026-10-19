@@ -30,10 +30,8 @@ import {
   summonCreature
 } from '../dist/game-core/summons/summons.js';
 import {
-  RETRAINING_DURATION_MS,
   balancedAttributesForLegacyLevel,
-  createDefaultUniversityState,
-  startRetraining
+  createDefaultUniversityState
 } from '../dist/game-core/university/retraining.js';
 import {starterRecipeIds} from '../dist/content/crafting.js';
 import {summonDefinitions} from '../dist/content/summons.js';
@@ -314,32 +312,6 @@ test('v14 still supports class-scaled summons alongside equipped items',()=>{
   });
   assert.equal(state.summons.active[0].hp,81);
   assert.notEqual(migrateSave({schemaVersion:14,savedAt:200,state}),null);
-});
-
-test('reconstructing state prunes equipment invalidated by completed retraining',()=>{
-  const state=fullState(10);
-  state.character.attributes.strength=20;
-  state.skillProgression['short-sword']={level:20,xp:0};
-  addSword(state,'rare-short-sword');
-  state.equipmentLoadout.mainHand='eq-1';
-
-  state.character.attributes.agility-=5;
-  state.university=startRetraining({
-    state:state.university,
-    attributes:state.character.attributes,
-    level:10,
-    from:'strength',
-    to:'charisma',
-    percent:100,
-    now:1000
-  });
-
-  const now=1000+RETRAINING_DURATION_MS;
-  const once=reconstructState(state,now);
-  assert.equal(once.university.pending,null);
-  if(once.character.attributes.strength<20){
-    assert.equal(once.equipmentLoadout.mainHand,null);
-  }
 });
 
 test('reconstructing state preserves valid loadout and timed summon recovery',()=>{

@@ -23,7 +23,7 @@ import { locations } from '../content/locations';
 import { enemies } from '../content/enemies';
 import { resolveRound } from '../game-core/combat/resolution';
 import { chooseAutoAction } from '../game-core/combat/auto-ai';
-import type { CombatLogEntry, CombatState, CombatStyle } from '../game-core/combat/types';
+import type { CombatAction, CombatLogEntry, CombatState, CombatStyle } from '../game-core/combat/types';
 import { rollLoot, type LootResult } from '../game-core/loot/loot';
 import { startFishing, advanceFishing, stopFishing, type FishingState } from '../game-core/peaceful/fishing';
 import {
@@ -116,11 +116,14 @@ import {
 import type { PlayerClassId } from '../game-core/classes/types';
 import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
+import { arcaneFocusSpell } from '../content/magic';
 import {
   applyArmorActionProgression,
   applyArmorMitigationSkill,
   applyBlockingActionProgression,
   applyBlockingChanceSkill,
+  applyMagicActionProgression,
+  applyMagicEffectSkill,
   applyWeaponAttackProgression,
   weaponDamageMultiplier
 } from '../game-core/combat/progression';
@@ -142,6 +145,7 @@ interface Commands {
   travelTo(id:string):void;
   startEncounter():void;
   manualAttack():void;
+  manualMagicFocus():void;
   togglePause():void;
   setMode(v:'auto'|'manual'):void;
   setStyle(v:CombatStyle):void;
@@ -300,6 +304,34 @@ function loadoutShieldBlock(
   return applyBlockingChanceSkill(base,progression,blockingPath);
 }
 
+function mageFocusAction(
+  state:RuntimeState
+):CombatAction|null{
+  if(state.classState.classId!=='mage'||!state.combat)return null;
+  if(state.combat.player.mana<arcaneFocusSpell.manaCost)return null;
+  return {
+    type:'magic',
+    manaCost:arcaneFocusSpell.manaCost,
+    skillPath:arcaneFocusSpell.skillPath,
+    effect:{
+      id:'focus',
+      magnitude:applyMagicEffectSkill(
+        arcaneFocusSpell.baseMagnitude,
+        state.skillProgression,
+        arcaneFocusSpell.skillPath
+      ),
+      rounds:arcaneFocusSpell.durationRounds
+    }
+  };
+}
+
+function shouldAutoCastMageFocus(state:RuntimeState):boolean{
+  if(!mageFocusAction(state))return false;
+  return !(state.combat?.player.effects??[]).some(effect=>
+    effect.id==='focus'&&effect.roundsRemaining>1
+  );
+}
+
 function stateLoadRatio(
   state:RuntimeState,
   inventory=state.inventory
@@ -362,6 +394,16 @@ function applyEquipmentCombatProgression(
     skillProgression=applyBlockingActionProgression(
       skillProgression,
       blockingPath,
+      action.success===true
+    );
+  }
+  if(
+    action.magicEffectApplied===true
+    &&(action.magicSkillPath?.length??0)>0
+  ){
+    skillProgression=applyMagicActionProgression(
+      skillProgression,
+      action.magicSkillPath,
       action.success===true
     );
   }
@@ -666,7 +708,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
     if(state.combatMode!=='auto'||state.paused||!state.combat)return;
     const id=setInterval(()=>setState(s=>{
       if(!s.combat||s.paused||s.combatMode!=='auto')return s;
-      const pc=chooseAutoAction(s.combat,'player',rng.current);pc.style=s.style;
+      const pc=chooseAutoAction(s.combat,'player',rng.current);
+      if(shouldAutoCastMageFocus(s)){
+        const magic=mageFocusAction(s);
+        if(magic)pc.main=magic;
+      }
+      pc.style=s.style;
       const ec=chooseAutoAction(s.combat,'enemy',rng.current);
       const r=resolveRound(s.combat,{player:pc,enemy:ec},rng.current);
       let afterRound:RuntimeState={
@@ -752,6 +799,60 @@ export function GameProvider({children}:{children:React.ReactNode}){
           );
         }
         return{...afterRound,combatItemUsedRound:null};
+      });
+    },
+    manualMagicFocus(){
+      setState(s=>{
+        if(!s.combat)return s;
+        const magic=mageFocusAction(s);
+        if(!magic){
+          return{
+            ...s,
+            log:[...s.log,'Магический фокус сейчас недоступен.']
+          };
+        }
+        const ec=chooseAutoAction(s.combat,'enemy',rng.current);
+        const r=resolveRound(
+          s.combat,
+          {player:{main:magic,style:s.style},enemy:ec},
+          rng.current
+        );
+        let afterRound:RuntimeState={
+          ...s,
+          combat:r.state,
+          summons:syncSummonsFromCombat(
+            s.summons,
+            r.state.summons??[],
+            Date.now()
+          )
+        };
+        afterRound=applyEquipmentCombatProgression(afterRound,r.log);
+        if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
+        if(r.state.enemy.hp<=0){
+          const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
+          const l=rollLoot(
+            {gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},
+            {luck:s.attributes.luck},
+            rng.current
+          );
+          return awardCombatProgression(
+            {
+              ...afterRound,
+              combat:null,
+              combatItemUsedRound:null,
+              loot:l,
+              gold:s.gold+l.gold,
+              log:[...s.log,`Победа. Получено ${l.gold} золота.`]
+            },
+            enemyLevel,
+            (s.combat.summons?.length??0)>0
+          );
+        }
+        return{
+          ...afterRound,
+          combatItemUsedRound:null,
+          log:[...afterRound.log,`Применено: ${arcaneFocusSpell.label}.`]
+        };
       });
     },
     togglePause(){setState(s=>({...s,paused:!s.paused}));},

@@ -3,6 +3,8 @@ import { emptyAttributeProfile } from '../game-core/progression/character.js';
 import type { AttributeProfile } from '../game-core/progression/character.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
 import type { SummonRosterState } from '../game-core/summons/types.js';
+import { createDefaultClassState } from '../game-core/classes/classes.js';
+import type { ClassState } from '../game-core/classes/types.js';
 import type { SeededRng } from '../game-core/rng.js';
 import { startTravel, advanceWorldTime, type WorldState } from '../game-core/world/travel.js';
 import type { InjuryState } from '../game-core/injuries/types.js';
@@ -52,9 +54,10 @@ export interface UiGameState {
   diplomacy: DiplomacyState;
   university: UniversityState;
   summons:SummonRosterState;
+  classState:ClassState;
 }
 
-export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'diplomacy' | 'university' | 'inventory';
+export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'diplomacy' | 'university' | 'class' | 'inventory';
 export type InterruptingActionKind = 'travel' | 'combat' | 'merchant' | 'inventory';
 export type AgricultureKind = 'safe' | 'neutral';
 export type InjuryMedicineTier = 'weak' | 'medium' | 'strong';
@@ -96,7 +99,8 @@ export function createNewGame(): UiGameState {
     economy:createDefaultEconomyState(),
     diplomacy:createDefaultDiplomacyState(),
     university:createDefaultUniversityState(),
-    summons:createDefaultSummonRoster()
+    summons:createDefaultSummonRoster(),
+    classState:createDefaultClassState()
   };
 }
 

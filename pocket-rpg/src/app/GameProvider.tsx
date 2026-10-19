@@ -90,9 +90,19 @@ import {
 import {
   prepareSummonsForCombat,
   reconstructSummonRecovery,
+  summonCreature,
   syncSummonsFromCombat
 } from '../game-core/summons/summons';
 import { summonDefinitions } from '../content/summons';
+import {
+  addClassCombatXp,
+  canUseClassSummon,
+  choosePlayerClass,
+  classSummonLimit,
+  effectiveSummonDefinitions
+} from '../game-core/classes/classes';
+import type { PlayerClassId } from '../game-core/classes/types';
+import { playerClasses } from '../content/classes';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -135,6 +145,8 @@ interface Commands {
   factionMediation():void;
   completeFactionRequest():void;
   startAttributeRetraining(from:AttributeId,to:AttributeId,percent:number):void;
+  chooseClass(id:PlayerClassId):void;
+  summonClassCreature(id:string):void;
 }
 const Ctx=createContext<{state:RuntimeState;commands:Commands}|null>(null);
 
@@ -186,6 +198,20 @@ function awardCharacterXp(
   };
 }
 
+function awardCombatProgression(
+  state:RuntimeState,
+  enemyLevel:number,
+  summonsParticipated:boolean
+):RuntimeState{
+  const xp=combatCharacterXp(enemyLevel);
+  const classResult=addClassCombatXp(state.classState,xp,summonsParticipated);
+  return awardCharacterXp(
+    {...state,classState:classResult.state},
+    xp,
+    'combat'
+  );
+}
+
 function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Date.now()):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
@@ -193,6 +219,12 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
   const scaled=farmingAmbush
     ? scaleFarmingAmbushStats(e.maxHp,e.damage)
     : {maxHp:e.maxHp,damage:e.damage};
+  const classDef=state.classState.classId?playerClasses[state.classState.classId]:null;
+  const effectiveSummons=effectiveSummonDefinitions(
+    state.classState,
+    playerClasses,
+    summonDefinitions
+  );
   return {
     round:1,
     player:{
@@ -202,7 +234,7 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
       parry:.1*penalties.blockParryMultiplier,
       evasion:.08,
       accuracy:Math.max(0,.85-penalties.accuracyPenalty),
-      damage:18*penalties.physicalAttackMultiplier,
+      damage:18*penalties.physicalAttackMultiplier*(classDef?.personalDamageMultiplier??1),
       style:'balanced',
       toxicity:0,
       effects:[]
@@ -213,7 +245,7 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
       stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,style:'balanced',
       toxicity:0,effects:[]
     },
-    summons:prepareSummonsForCombat(state.summons,summonDefinitions,now)
+    summons:prepareSummonsForCombat(state.summons,effectiveSummons,now)
   };
 }
 
@@ -244,6 +276,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           diplomacy:restored.diplomacy,
           university:restored.university,
           summons:restored.summons,
+          classState:restored.classState,
           farmingWork:null,
           gatheringSession:null
         }));
@@ -265,18 +298,24 @@ export function GameProvider({children}:{children:React.ReactNode}){
         economy:state.economy,
         diplomacy:state.diplomacy,
         university:state.university,
-        summons:state.summons
+        summons:state.summons,
+        classState:state.classState
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons,state.classState]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
       const now=Date.now();
       let n:RuntimeState={...s,...tickGame(s,now)};
       if(!n.combat){
-        n={...n,summons:reconstructSummonRecovery(n.summons,summonDefinitions,now)};
+        const effectiveSummons=effectiveSummonDefinitions(
+          n.classState,
+          playerClasses,
+          summonDefinitions
+        );
+        n={...n,summons:reconstructSummonRecovery(n.summons,effectiveSummons,now)};
       }
 
       while(n.farmingWork && now>=n.farmingWork.nextAt){
@@ -423,10 +462,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
       if(r.state.enemy.hp<=0){
         const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
         const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-        return awardCharacterXp(
+        return awardCombatProgression(
           {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
-          combatCharacterXp(enemyLevel),
-          'combat'
+          enemyLevel,
+          (s.combat.summons?.length??0)>0
         );
       }
       return{...afterRound,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
@@ -448,7 +487,12 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!canPerformAction(s.injuries,'combat',now))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
         const id=locations[s.world.locationId]?.enemies[0];
         if(!id)return s;
-        const summons=reconstructSummonRecovery(s.summons,summonDefinitions,now);
+        const effectiveSummons=effectiveSummonDefinitions(
+          s.classState,
+          playerClasses,
+          summonDefinitions
+        );
+        const summons=reconstructSummonRecovery(s.summons,effectiveSummons,now);
         const prepared={...s,summons};
         return{
           ...prepared,
@@ -479,10 +523,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(r.state.enemy.hp<=0){
           const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
           const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
-          return awardCharacterXp(
+          return awardCombatProgression(
             {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
-            combatCharacterXp(enemyLevel),
-            'combat'
+            enemyLevel,
+            (s.combat.summons?.length??0)>0
           );
         }
         return{...afterRound,combatItemUsedRound:null};
@@ -1083,6 +1127,68 @@ export function GameProvider({children}:{children:React.ReactNode}){
           };
         }catch{
           return{...s,log:[...s.log,'Такое перераспределение сейчас недоступно.']};
+        }
+      });
+    },
+    chooseClass(id){
+      setState(s=>{
+        if(s.combat)return s;
+        if(s.classState.classId!==null){
+          return{...s,log:[...s.log,'Класс уже выбран.']};
+        }
+        if(s.summons.active.length>0){
+          return{...s,log:[...s.log,'Нельзя выбрать класс при существующих непривязанных призывах.']};
+        }
+        try{
+          const classState=choosePlayerClass(s.classState,id);
+          return{
+            ...s,
+            classState,
+            log:[...s.log,`Выбран класс: ${playerClasses[id].label}.`]
+          };
+        }catch{
+          return s;
+        }
+      });
+    },
+    summonClassCreature(id){
+      setState(s=>{
+        const now=Date.now();
+        const classId=s.classState.classId;
+        if(!classId||s.combat||!canPerformAction(s.injuries,'class',now))return s;
+        const classDef=playerClasses[classId];
+        if(!canUseClassSummon(s.classState,classDef,id)){
+          return{...s,log:[...s.log,'Этот призыв ещё не открыт классовым навыком.']};
+        }
+        const effectiveSummons=effectiveSummonDefinitions(
+          s.classState,
+          playerClasses,
+          summonDefinitions
+        );
+        const definition=effectiveSummons[id];
+        if(!definition)return s;
+        try{
+          const recovered=reconstructSummonRecovery(
+            s.summons,
+            effectiveSummons,
+            now
+          );
+          const summons=summonCreature({
+            roster:recovered,
+            definition,
+            limit:classSummonLimit(s.classState,playerClasses),
+            now
+          });
+          return{
+            ...s,
+            summons,
+            fishing:null,
+            farmingWork:null,
+            gatheringSession:null,
+            log:[...s.log,`Призвано существо: ${definition.label}.`]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Призыв сейчас недоступен.']};
         }
       });
     }

@@ -341,3 +341,21 @@ export function equipmentStatValues(
   }
   return values;
 }
+
+
+export function equipmentSlotStatValues(
+  loadout:EquipmentLoadoutState,
+  inventory:InventoryState,
+  slot:EquipmentSlot,
+  stat:string
+):number[]{
+  const instance=equippedInstance(loadout,inventory,slot);
+  if(!instance)return [];
+  const values:number[]=[];
+  const base=instance.stats[stat];
+  if(typeof base==='number')values.push(base);
+  for(const property of instance.properties){
+    if(property.stat===stat)values.push(property.value);
+  }
+  return values;
+}

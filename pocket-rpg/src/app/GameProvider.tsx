@@ -933,6 +933,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!city||s.combat||!canPerformAction(s.injuries,'merchant',now))return s;
         const instance=(s.inventory.equipment??[]).find(entry=>entry.instanceId===instanceId);
         if(!instance)return s;
+        if(isEquippedInstance(s.equipmentLoadout,instanceId)){
+          return{...s,log:[...s.log,'Сначала снимите предмет перед продажей.']};
+        }
         try{
           const quote=equipmentSellQuote(
             s.economy,
@@ -960,6 +963,51 @@ export function GameProvider({children}:{children:React.ReactNode}){
         }catch{
           return{...s,log:[...s.log,'Эту экипировку нельзя продать здесь.']};
         }
+      });
+    },
+    equipEquipment(instanceId){
+      setState(s=>{
+        if(s.combat){
+          return{...s,log:[...s.log,'Нельзя менять экипировку во время боя.']};
+        }
+        try{
+          const result=equipLoadoutInstance({
+            loadout:s.equipmentLoadout,
+            inventory:s.inventory,
+            instanceId,
+            itemDefs,
+            character:{
+              attributes:s.attributes,
+              skills:skillLevelMap(s)
+            }
+          });
+          const instance=(s.inventory.equipment??[]).find(
+            entry=>entry.instanceId===instanceId
+          );
+          return{
+            ...s,
+            equipmentLoadout:result.loadout,
+            log:[
+              ...s.log,
+              `Экипировано: ${itemDefs[instance?.itemId??'']?.label??instanceId}.`
+            ]
+          };
+        }catch{
+          return{...s,log:[...s.log,'Требования предмета не выполнены.']};
+        }
+      });
+    },
+    unequipEquipment(slot){
+      setState(s=>{
+        if(s.combat){
+          return{...s,log:[...s.log,'Нельзя менять экипировку во время боя.']};
+        }
+        if(!s.equipmentLoadout[slot])return s;
+        return{
+          ...s,
+          equipmentLoadout:unequipSlot(s.equipmentLoadout,slot),
+          log:[...s.log,'Предмет снят.']
+        };
       });
     },
     useInjuryMedicine(tier){

@@ -31,4 +31,4 @@ export interface CombatantState {
 export interface CombatState { player:CombatantState; enemy:CombatantState; round:number; summons?:SummonCombatState[]; }
 export interface ActionSelection { main?:CombatAction; additional?:CombatAction; style?:CombatStyle; }
 export interface RoundSelections { player:ActionSelection; enemy:ActionSelection; }
-export interface CombatLogEntry { phase:'player-additional'|'enemy-additional'|'player-main'|'summon-main'|'enemy-main'; action:string; actorId?:string; }
+export interface CombatLogEntry { phase:'player-additional'|'enemy-additional'|'player-main'|'summon-main'|'enemy-main'; action:string; actorId?:string; success?:boolean; damage?:number; }

@@ -147,9 +147,18 @@ function applyAction(
         magicEffectApplied:false
       };
     }
-    actor.mana=Math.max(0,actor.mana-manaCost);
     const rounds=Math.max(1,Math.floor(buff.rounds));
     const existing=actor.effects?.find(effect=>effect.id===buff.id);
+    // An unchanged buff is not an applied magic effect: no mana or skill XP.
+    if(existing && existing.magnitude>=magnitude && existing.roundsRemaining>=rounds){
+      return {
+        success:false,
+        damage:0,
+        magicSkillPath:action.skillPath,
+        magicEffectApplied:false
+      };
+    }
+    actor.mana=Math.max(0,actor.mana-manaCost);
     if(existing){
       existing.magnitude=Math.max(existing.magnitude,magnitude);
       existing.roundsRemaining=Math.max(existing.roundsRemaining,rounds);

@@ -1,12 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  LEGACY_PERSISTED_SKILL_IDS_V12,
   PERSISTED_SKILL_IDS,
+  WEAPON_SKILL_IDS,
   collectLegacySkillProgression,
   createDefaultSkillProgression,
   mirrorsMatchProgression,
   skillStatesEqual,
-  synchronizeSkillMirrors
+  synchronizeSkillMirrors,
+  upgradeSkillProgressionV12
 } from '../dist/game-core/progression/skill-progress.js';
 import {createDefaultFarmingState} from '../dist/game-core/peaceful/farming/farming.js';
 import {createDefaultGatheringState} from '../dist/game-core/peaceful/gathering/gathering.js';
@@ -24,9 +27,16 @@ function legacy(){
   };
 }
 
-test('canonical persisted skill ids are exactly implemented non-class skills',()=>{
-  assert.deepEqual(PERSISTED_SKILL_IDS,[
+test('canonical persisted skill ids include existing professions and authored weapon chain',()=>{
+  assert.deepEqual(LEGACY_PERSISTED_SKILL_IDS_V12,[
     'fishing','farming','gathering','crafting','alchemy','trading','diplomacy'
+  ]);
+  assert.deepEqual(WEAPON_SKILL_IDS,[
+    'weapons','one-handed','swords','short-sword'
+  ]);
+  assert.deepEqual(PERSISTED_SKILL_IDS,[
+    'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
+    'weapons','one-handed','swords','short-sword'
   ]);
   assert.deepEqual(createDefaultSkillProgression(),{
     fishing:{level:0,xp:0},
@@ -35,7 +45,11 @@ test('canonical persisted skill ids are exactly implemented non-class skills',()
     crafting:{level:0,xp:0},
     alchemy:{level:0,xp:0},
     trading:{level:0,xp:0},
-    diplomacy:{level:0,xp:0}
+    diplomacy:{level:0,xp:0},
+    weapons:{level:0,xp:0},
+    'one-handed':{level:0,xp:0},
+    swords:{level:0,xp:0},
+    'short-sword':{level:0,xp:0}
   });
 });
 
@@ -59,7 +73,11 @@ test('legacy subsystem skill states are collected without changing values',()=>{
     crafting:{level:5,xp:32.5},
     alchemy:{level:6,xp:42.5},
     trading:{level:7,xp:52.5},
-    diplomacy:{level:8,xp:62.5}
+    diplomacy:{level:8,xp:62.5},
+    weapons:{level:0,xp:0},
+    'one-handed':{level:0,xp:0},
+    swords:{level:0,xp:0},
+    'short-sword':{level:0,xp:0}
   });
 });
 
@@ -97,4 +115,24 @@ test('skill state equality tolerates tiny floating point noise only',()=>{
   assert.equal(skillStatesEqual({level:3,xp:1},{level:3,xp:1+1e-10}),true);
   assert.equal(skillStatesEqual({level:3,xp:1},{level:4,xp:1}),false);
   assert.equal(skillStatesEqual({level:3,xp:1},{level:3,xp:1.01}),false);
+});
+
+
+test('v12 canonical progression upgrades by preserving seven skills and zeroing weapon chain',()=>{
+  const legacy={
+    fishing:{level:1,xp:1},
+    farming:{level:2,xp:2},
+    gathering:{level:3,xp:3},
+    crafting:{level:4,xp:4},
+    alchemy:{level:5,xp:5},
+    trading:{level:6,xp:6},
+    diplomacy:{level:7,xp:7}
+  };
+  const upgraded=upgradeSkillProgressionV12(legacy);
+  for(const id of LEGACY_PERSISTED_SKILL_IDS_V12){
+    assert.deepEqual(upgraded[id],legacy[id]);
+  }
+  for(const id of WEAPON_SKILL_IDS){
+    assert.deepEqual(upgraded[id],{level:0,xp:0});
+  }
 });

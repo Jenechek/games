@@ -137,7 +137,8 @@ function applyAction(
       };
     }
 
-    const magnitude=Math.max(0,action.effect.magnitude);
+    const buff=action.effect;
+    const magnitude=Math.max(0,buff.magnitude);
     if(magnitude<=0){
       return {
         success:false,
@@ -147,14 +148,14 @@ function applyAction(
       };
     }
     actor.mana=Math.max(0,actor.mana-manaCost);
-    const rounds=Math.max(1,Math.floor(action.effect.rounds));
-    const existing=actor.effects?.find(effect=>effect.id===action.effect.id);
+    const rounds=Math.max(1,Math.floor(buff.rounds));
+    const existing=actor.effects?.find(effect=>effect.id===buff.id);
     if(existing){
       existing.magnitude=Math.max(existing.magnitude,magnitude);
       existing.roundsRemaining=Math.max(existing.roundsRemaining,rounds);
     }else{
       actor.effects=[...(actor.effects??[]),{
-        id:action.effect.id,
+        id:buff.id,
         magnitude,
         roundsRemaining:rounds
       }];

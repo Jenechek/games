@@ -8,6 +8,7 @@ import {
   equipInstance,
   equipmentStatTotals,
   equipmentStatValues,
+  equipmentSlotStatValues,
   isEquippedInstance,
   pruneInvalidEquipmentLoadout,
   unequipSlot,
@@ -208,5 +209,39 @@ test('short sword items declare the authored weapon hierarchy explicitly',()=>{
   assert.deepEqual(
     itemDefs['rare-short-sword'].skillPath,
     itemDefs['iron-short-sword'].skillPath
+  );
+});
+
+
+test('armor and shield items declare combat skill paths',()=>{
+  assert.deepEqual(itemDefs['light-armor'].skillPath,[
+    'armor','body-armor','light-armor'
+  ]);
+  assert.deepEqual(itemDefs['heavy-armor'].skillPath,[
+    'armor','body-armor','heavy-armor'
+  ]);
+  assert.deepEqual(itemDefs['wooden-shield'].skillPath,['shields']);
+});
+
+
+test('per-slot stat extraction keeps body and shield mitigation separate',()=>{
+  const inventory=inventoryWith('wooden-shield','light-armor');
+  const loadout={
+    mainHand:null,
+    offHand:'eq-1',
+    body:'eq-2',
+    bag:null
+  };
+  assert.deepEqual(
+    equipmentSlotStatValues(loadout,inventory,'offHand','mitigation'),
+    [0.08]
+  );
+  assert.deepEqual(
+    equipmentSlotStatValues(loadout,inventory,'body','mitigation'),
+    [0.05]
+  );
+  assert.deepEqual(
+    equipmentSlotStatValues(loadout,inventory,'offHand','blockChance'),
+    [0.12]
   );
 });

@@ -24,7 +24,7 @@ export const SHORT_SWORD_SKILL_CHAIN=[
   'short-sword'
 ] as const satisfies readonly PersistedSkillId[];
 
-export function normalizedWeaponSkillPath(
+export function normalizedCombatSkillPath(
   progression:SkillProgressionState,
   skillPath:readonly string[]|undefined
 ):PersistedSkillId[]{
@@ -34,11 +34,13 @@ export function normalizedWeaponSkillPath(
   );
 }
 
+export const normalizedWeaponSkillPath=normalizedCombatSkillPath;
+
 export function weaponDamageMultiplier(
   progression:SkillProgressionState,
   skillPath:readonly string[]|undefined
 ):number{
-  const path=normalizedWeaponSkillPath(progression,skillPath);
+  const path=normalizedCombatSkillPath(progression,skillPath);
   return multiplicativeSkillMultiplier(
     path.map(id=>skillPrimaryBonus(progression[id].level))
   );
@@ -49,7 +51,7 @@ export function applyWeaponAttackProgression(
   skillPath:readonly string[]|undefined,
   success:boolean
 ):SkillProgressionState{
-  const path=normalizedWeaponSkillPath(progression,skillPath);
+  const path=normalizedCombatSkillPath(progression,skillPath);
   if(path.length===0)return progression;
   const baseXp=actionXp(success);
   return applyWeightedSkillUse(
@@ -78,4 +80,90 @@ export function applyShortSwordAttackProgression(
     SHORT_SWORD_SKILL_CHAIN,
     success
   );
+}
+
+
+function combatSkillEffectMultiplier(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  const path=normalizedCombatSkillPath(progression,skillPath);
+  return multiplicativeSkillMultiplier(
+    path.map(id=>skillPrimaryBonus(progression[id].level))
+  );
+}
+
+function applyCombatDomainProgression(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined,
+  success:boolean,
+  weight:number
+):SkillProgressionState{
+  const path=normalizedCombatSkillPath(progression,skillPath);
+  if(path.length===0)return progression;
+  return applyWeightedSkillUse(
+    progression,
+    skills,
+    path.map(skillId=>({skillId,weight})),
+    actionXp(success)
+  ) as SkillProgressionState;
+}
+
+export function armorMitigationMultiplier(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return combatSkillEffectMultiplier(progression,skillPath);
+}
+
+export function blockingChanceMultiplier(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return combatSkillEffectMultiplier(progression,skillPath);
+}
+
+export function applyArmorActionProgression(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined,
+  success:boolean
+):SkillProgressionState{
+  return applyCombatDomainProgression(
+    progression,
+    skillPath,
+    success,
+    COMBAT_DOMAIN_XP_WEIGHTS.armor
+  );
+}
+
+export function applyBlockingActionProgression(
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined,
+  success:boolean
+):SkillProgressionState{
+  return applyCombatDomainProgression(
+    progression,
+    skillPath,
+    success,
+    COMBAT_DOMAIN_XP_WEIGHTS.blocking
+  );
+}
+
+
+export function applyArmorMitigationSkill(
+  baseMitigation:number,
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return Math.max(0,baseMitigation)
+    *armorMitigationMultiplier(progression,skillPath);
+}
+
+export function applyBlockingChanceSkill(
+  baseBlockChance:number,
+  progression:SkillProgressionState,
+  skillPath:readonly string[]|undefined
+):number{
+  return Math.max(0,baseBlockChance)
+    *blockingChanceMultiplier(progression,skillPath);
 }

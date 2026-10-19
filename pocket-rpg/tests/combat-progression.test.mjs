@@ -7,10 +7,13 @@ import {
   applyArmorMitigationSkill,
   applyBlockingActionProgression,
   applyBlockingChanceSkill,
+  applyMagicActionProgression,
+  applyMagicEffectSkill,
   applyShortSwordAttackProgression,
   applyWeaponAttackProgression,
   armorMitigationMultiplier,
   blockingChanceMultiplier,
+  magicEffectMultiplier,
   shortSwordDamageMultiplier,
   weaponDamageMultiplier
 } from '../dist/game-core/combat/progression.js';
@@ -191,4 +194,75 @@ test('defensive skill transforms scale only their primary stat',()=>{
       ['shields']
     )-0.144
   )<1e-10);
+});
+
+
+test('magic action progression uses thirty percent weight across its hierarchy',()=>{
+  const start=createDefaultSkillProgression();
+  const next=applyMagicActionProgression(
+    start,
+    ['magic','arcane','concentration','arcane-focus'],
+    true
+  );
+  assert.ok(Math.abs(next.magic.xp-6)<1e-10);
+  assert.ok(Math.abs(next.arcane.xp-9.9)<1e-10);
+  assert.ok(Math.abs(next.concentration.xp-16.335)<1e-10);
+  assert.ok(Math.abs(next['arcane-focus'].xp-26.95275)<1e-10);
+});
+
+test('failed magic action receives one quarter baseline before thirty percent weight',()=>{
+  const next=applyMagicActionProgression(
+    createDefaultSkillProgression(),
+    ['magic','arcane','concentration','arcane-focus'],
+    false
+  );
+  assert.ok(Math.abs(next.magic.xp-1.5)<1e-10);
+  assert.ok(Math.abs(next.arcane.xp-2.475)<1e-10);
+  assert.ok(Math.abs(next.concentration.xp-4.08375)<1e-10);
+  assert.ok(Math.abs(next['arcane-focus'].xp-6.7381875)<1e-10);
+});
+
+test('magic hierarchy scales only the authored magical effect magnitude',()=>{
+  const progression=createDefaultSkillProgression();
+  progression.magic={level:100,xp:0};
+  progression.arcane={level:100,xp:0};
+  progression.concentration={level:100,xp:0};
+  progression['arcane-focus']={level:100,xp:0};
+
+  assert.ok(Math.abs(
+    magicEffectMultiplier(
+      progression,
+      ['magic','arcane','concentration','arcane-focus']
+    )-(1.2**4)
+  )<1e-10);
+  assert.ok(Math.abs(
+    applyMagicEffectSkill(
+      0.08,
+      progression,
+      ['magic','arcane','concentration','arcane-focus']
+    )-(0.08*(1.2**4))
+  )<1e-10);
+});
+
+test('missing magic path grants no magic progression or effect multiplier',()=>{
+  const start=createDefaultSkillProgression();
+  assert.equal(applyMagicActionProgression(start,undefined,true),start);
+  assert.equal(magicEffectMultiplier(start,undefined),1);
+  assert.equal(applyMagicEffectSkill(0.08,start,undefined),0.08);
+});
+
+test('magic progression does not leak into weapon defense or peaceful skills',()=>{
+  const start=createDefaultSkillProgression();
+  const next=applyMagicActionProgression(
+    start,
+    ['magic','arcane','concentration','arcane-focus'],
+    true
+  );
+  for(const id of [
+    'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
+    'weapons','one-handed','swords','short-sword',
+    'armor','body-armor','light-armor','heavy-armor','shields'
+  ]){
+    assert.deepEqual(next[id],start[id]);
+  }
 });

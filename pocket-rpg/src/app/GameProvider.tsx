@@ -118,10 +118,10 @@ import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
 import {
   applyArmorActionProgression,
+  applyArmorMitigationSkill,
   applyBlockingActionProgression,
+  applyBlockingChanceSkill,
   applyWeaponAttackProgression,
-  armorMitigationMultiplier,
-  blockingChanceMultiplier,
   weaponDamageMultiplier
 } from '../game-core/combat/progression';
 import {combineDiminishingPercentages} from '../game-core/combat/mitigation';
@@ -253,17 +253,15 @@ function loadoutMitigation(
   progression=state.skillProgression
 ):number{
   const armorPath=equippedSkillPath(state,'body');
-  const armorMultiplier=armorMitigationMultiplier(
-    progression,
-    armorPath
-  );
   const values=EQUIPMENT_SLOTS.flatMap(slot=>
     equipmentSlotStatValues(
       state.equipmentLoadout,
       state.inventory,
       slot,
       'mitigation'
-    ).map(value=>slot==='body'?value*armorMultiplier:value)
+    ).map(value=>slot==='body'
+      ?applyArmorMitigationSkill(value,progression,armorPath)
+      :value)
   );
   return combineDiminishingPercentages(values);
 }
@@ -279,7 +277,7 @@ function loadoutShieldBlock(
     'offHand',
     'blockChance'
   ).reduce((sum,value)=>sum+value,0);
-  return base*blockingChanceMultiplier(progression,blockingPath);
+  return applyBlockingChanceSkill(base,progression,blockingPath);
 }
 
 function stateLoadRatio(

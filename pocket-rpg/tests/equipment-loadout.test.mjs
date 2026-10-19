@@ -210,3 +210,14 @@ test('short sword items declare the authored weapon hierarchy explicitly',()=>{
     itemDefs['iron-short-sword'].skillPath
   );
 });
+
+
+test('armor and shield items declare combat skill paths',()=>{
+  assert.deepEqual(itemDefs['light-armor'].skillPath,[
+    'armor','body-armor','light-armor'
+  ]);
+  assert.deepEqual(itemDefs['heavy-armor'].skillPath,[
+    'armor','body-armor','heavy-armor'
+  ]);
+  assert.deepEqual(itemDefs['wooden-shield'].skillPath,['shields']);
+});

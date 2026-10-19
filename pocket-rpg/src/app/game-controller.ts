@@ -5,6 +5,8 @@ import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
 import type { SummonRosterState } from '../game-core/summons/types.js';
 import { createDefaultClassState } from '../game-core/classes/classes.js';
 import type { ClassState } from '../game-core/classes/types.js';
+import { createDefaultSkillProgression } from '../game-core/progression/skill-progress.js';
+import type { SkillProgressionState } from '../game-core/progression/skill-progress.js';
 import type { SeededRng } from '../game-core/rng.js';
 import { startTravel, advanceWorldTime, type WorldState } from '../game-core/world/travel.js';
 import type { InjuryState } from '../game-core/injuries/types.js';
@@ -55,6 +57,7 @@ export interface UiGameState {
   university: UniversityState;
   summons:SummonRosterState;
   classState:ClassState;
+  skillProgression:SkillProgressionState;
 }
 
 export type RecoveryActionKind = 'travel' | 'combat' | 'fishing' | 'farming' | 'gathering' | 'crafting' | 'merchant' | 'diplomacy' | 'university' | 'class' | 'inventory';
@@ -100,7 +103,8 @@ export function createNewGame(): UiGameState {
     diplomacy:createDefaultDiplomacyState(),
     university:createDefaultUniversityState(),
     summons:createDefaultSummonRoster(),
-    classState:createDefaultClassState()
+    classState:createDefaultClassState(),
+    skillProgression:createDefaultSkillProgression()
   };
 }
 

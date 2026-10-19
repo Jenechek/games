@@ -17,6 +17,12 @@ export const skills=[
   {id:'arcane',parentId:'magic',depth:1,label:'Аркана'},
   {id:'concentration',parentId:'arcane',depth:2,label:'Концентрация'},
   {id:'arcane-focus',parentId:'concentration',depth:3,label:'Магический фокус'},
+  {id:'restoration',parentId:'magic',depth:1,label:'Восстановление'},
+  {id:'healing',parentId:'restoration',depth:2,label:'Исцеление'},
+  {id:'arcane-mend',parentId:'healing',depth:3,label:'Магическое лечение'},
+  {id:'protection',parentId:'magic',depth:1,label:'Защита'},
+  {id:'warding',parentId:'protection',depth:2,label:'Обереги'},
+  {id:'arcane-ward',parentId:'warding',depth:3,label:'Магический барьер'},
 
   {id:'professions',parentId:null,depth:0,label:'Профессии'},
   {id:'crafting',parentId:'professions',depth:1,label:'Ремесло'},

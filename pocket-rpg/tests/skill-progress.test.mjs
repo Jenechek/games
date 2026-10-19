@@ -5,7 +5,10 @@ import {
   BLOCKING_SKILL_IDS,
   LEGACY_PERSISTED_SKILL_IDS_V12,
   LEGACY_PERSISTED_SKILL_IDS_V14,
+  EXPANDED_MAGIC_SKILL_IDS,
+  LEGACY_MAGIC_SKILL_IDS_V16,
   LEGACY_PERSISTED_SKILL_IDS_V15,
+  LEGACY_PERSISTED_SKILL_IDS_V16,
   MAGIC_SKILL_IDS,
   PERSISTED_SKILL_IDS,
   WEAPON_SKILL_IDS,
@@ -16,7 +19,8 @@ import {
   synchronizeSkillMirrors,
   upgradeSkillProgressionV12,
   upgradeSkillProgressionV14,
-  upgradeSkillProgressionV15
+  upgradeSkillProgressionV15,
+  upgradeSkillProgressionV16
 } from '../dist/game-core/progression/skill-progress.js';
 import {createDefaultFarmingState} from '../dist/game-core/peaceful/farming/farming.js';
 import {createDefaultGatheringState} from '../dist/game-core/peaceful/gathering/gathering.js';
@@ -54,14 +58,31 @@ test('canonical persisted skill ids include professions combat defense and magic
     'weapons','one-handed','swords','short-sword',
     'armor','body-armor','light-armor','heavy-armor','shields'
   ]);
-  assert.deepEqual(MAGIC_SKILL_IDS,[
+  assert.deepEqual(LEGACY_MAGIC_SKILL_IDS_V16,[
     'magic','arcane','concentration','arcane-focus'
+  ]);
+  assert.deepEqual(EXPANDED_MAGIC_SKILL_IDS,[
+    'restoration','healing','arcane-mend',
+    'protection','warding','arcane-ward'
+  ]);
+  assert.deepEqual(LEGACY_PERSISTED_SKILL_IDS_V16,[
+    'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
+    'weapons','one-handed','swords','short-sword',
+    'armor','body-armor','light-armor','heavy-armor','shields',
+    'magic','arcane','concentration','arcane-focus'
+  ]);
+  assert.deepEqual(MAGIC_SKILL_IDS,[
+    'magic','arcane','concentration','arcane-focus',
+    'restoration','healing','arcane-mend',
+    'protection','warding','arcane-ward'
   ]);
   assert.deepEqual(PERSISTED_SKILL_IDS,[
     'fishing','farming','gathering','crafting','alchemy','trading','diplomacy',
     'weapons','one-handed','swords','short-sword',
     'armor','body-armor','light-armor','heavy-armor','shields',
-    'magic','arcane','concentration','arcane-focus'
+    'magic','arcane','concentration','arcane-focus',
+    'restoration','healing','arcane-mend',
+    'protection','warding','arcane-ward'
   ]);
   assert.deepEqual(createDefaultSkillProgression(),{
     fishing:{level:0,xp:0},
@@ -83,7 +104,13 @@ test('canonical persisted skill ids include professions combat defense and magic
     magic:{level:0,xp:0},
     arcane:{level:0,xp:0},
     concentration:{level:0,xp:0},
-    'arcane-focus':{level:0,xp:0}
+    'arcane-focus':{level:0,xp:0},
+    restoration:{level:0,xp:0},
+    healing:{level:0,xp:0},
+    'arcane-mend':{level:0,xp:0},
+    protection:{level:0,xp:0},
+    warding:{level:0,xp:0},
+    'arcane-ward':{level:0,xp:0}
   });
 });
 
@@ -120,7 +147,13 @@ test('legacy subsystem skill states are collected without changing values',()=>{
     magic:{level:0,xp:0},
     arcane:{level:0,xp:0},
     concentration:{level:0,xp:0},
-    'arcane-focus':{level:0,xp:0}
+    'arcane-focus':{level:0,xp:0},
+    restoration:{level:0,xp:0},
+    healing:{level:0,xp:0},
+    'arcane-mend':{level:0,xp:0},
+    protection:{level:0,xp:0},
+    warding:{level:0,xp:0},
+    'arcane-ward':{level:0,xp:0}
   });
 });
 
@@ -231,6 +264,39 @@ test('v15 progression preserves defense skills and zeroes magic branch only',()=
     assert.deepEqual(upgraded[id],old[id]);
   }
   for(const id of MAGIC_SKILL_IDS){
+    assert.deepEqual(upgraded[id],{level:0,xp:0});
+  }
+});
+
+
+test('v16 progression preserves existing magic and zeroes only expanded branches',()=>{
+  const old={
+    fishing:{level:1,xp:1},
+    farming:{level:2,xp:2},
+    gathering:{level:3,xp:3},
+    crafting:{level:4,xp:4},
+    alchemy:{level:5,xp:5},
+    trading:{level:6,xp:6},
+    diplomacy:{level:7,xp:7},
+    weapons:{level:8,xp:8},
+    'one-handed':{level:9,xp:9},
+    swords:{level:10,xp:10},
+    'short-sword':{level:11,xp:11},
+    armor:{level:12,xp:12},
+    'body-armor':{level:13,xp:13},
+    'light-armor':{level:14,xp:14},
+    'heavy-armor':{level:15,xp:15},
+    shields:{level:16,xp:16},
+    magic:{level:17,xp:17},
+    arcane:{level:18,xp:18},
+    concentration:{level:19,xp:19},
+    'arcane-focus':{level:20,xp:20}
+  };
+  const upgraded=upgradeSkillProgressionV16(old);
+  for(const id of LEGACY_PERSISTED_SKILL_IDS_V16){
+    assert.deepEqual(upgraded[id],old[id]);
+  }
+  for(const id of EXPANDED_MAGIC_SKILL_IDS){
     assert.deepEqual(upgraded[id],{level:0,xp:0});
   }
 });

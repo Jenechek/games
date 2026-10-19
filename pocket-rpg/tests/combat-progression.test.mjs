@@ -19,7 +19,18 @@ import {
   weaponDamageMultiplier
 } from '../dist/game-core/combat/progression.js';
 import {createDefaultSkillProgression} from '../dist/game-core/progression/skill-progress.js';
-import {ARCANE_FOCUS_SKILL_PATH,arcaneFocusSpell} from '../dist/content/magic.js';
+import {
+  ARCANE_FOCUS_SKILL_PATH,
+  ARCANE_MEND_SKILL_PATH,
+  ARCANE_WARD_SKILL_PATH,
+  arcaneFocusSpell,
+  arcaneMendSpell,
+  arcaneWardSpell,
+  canCastMagicSpell,
+  chooseMageAutoSpellId,
+  isMagicSpellUnlocked,
+  magicSpells
+} from '../dist/content/magic.js';
 
 test('agreed combat domain weights remain explicit',()=>{
   assert.deepEqual(COMBAT_DOMAIN_XP_WEIGHTS,{
@@ -275,8 +286,9 @@ test('authored Arcane Focus content declares the expected magic path and cost',(
     'magic','arcane','concentration','arcane-focus'
   ]);
   assert.equal(arcaneFocusSpell.manaCost,20);
-  assert.equal(arcaneFocusSpell.baseMagnitude,0.08);
-  assert.equal(arcaneFocusSpell.durationRounds,3);
+  assert.equal(arcaneFocusSpell.effect.kind,'buff');
+  assert.equal(arcaneFocusSpell.effect.baseMagnitude,0.08);
+  assert.equal(arcaneFocusSpell.effect.durationRounds,3);
   assert.deepEqual(arcaneFocusSpell.skillPath,ARCANE_FOCUS_SKILL_PATH);
 });
 
@@ -297,4 +309,131 @@ test('logged magic progression requires a real applied magical effect',()=>{
   });
   assert.ok(Math.abs(applied.magic.xp-6)<1e-10);
   assert.ok(Math.abs(applied['arcane-focus'].xp-26.95275)<1e-10);
+});
+
+
+test('expanded magic spell registry uses fixed unlock thresholds',()=>{
+  assert.equal(arcaneFocusSpell.requiredMagicLevel,0);
+  assert.equal(arcaneMendSpell.requiredMagicLevel,10);
+  assert.equal(arcaneWardSpell.requiredMagicLevel,20);
+
+  assert.equal(isMagicSpellUnlocked(arcaneFocusSpell,0),true);
+  assert.equal(isMagicSpellUnlocked(arcaneMendSpell,9),false);
+  assert.equal(isMagicSpellUnlocked(arcaneMendSpell,10),true);
+  assert.equal(isMagicSpellUnlocked(arcaneWardSpell,19),false);
+  assert.equal(isMagicSpellUnlocked(arcaneWardSpell,20),true);
+});
+
+test('expanded magic registry declares three distinct four-level skill paths',()=>{
+  assert.deepEqual(ARCANE_FOCUS_SKILL_PATH,[
+    'magic','arcane','concentration','arcane-focus'
+  ]);
+  assert.deepEqual(ARCANE_MEND_SKILL_PATH,[
+    'magic','restoration','healing','arcane-mend'
+  ]);
+  assert.deepEqual(ARCANE_WARD_SKILL_PATH,[
+    'magic','protection','warding','arcane-ward'
+  ]);
+  assert.deepEqual(Object.keys(magicSpells),[
+    'arcane-focus','arcane-mend','arcane-ward'
+  ]);
+});
+
+test('restoration magic uses the same thirty percent domain share',()=>{
+  const next=applyMagicActionProgression(
+    createDefaultSkillProgression(),
+    ARCANE_MEND_SKILL_PATH,
+    true
+  );
+  assert.ok(Math.abs(next.magic.xp-6)<1e-10);
+  assert.ok(Math.abs(next.restoration.xp-9.9)<1e-10);
+  assert.ok(Math.abs(next.healing.xp-16.335)<1e-10);
+  assert.ok(Math.abs(next['arcane-mend'].xp-26.95275)<1e-10);
+  assert.deepEqual(next.protection,{level:0,xp:0});
+});
+
+test('protection magic trains only its own branch',()=>{
+  const next=applyMagicActionProgression(
+    createDefaultSkillProgression(),
+    ARCANE_WARD_SKILL_PATH,
+    true
+  );
+  assert.ok(Math.abs(next.magic.xp-6)<1e-10);
+  assert.ok(Math.abs(next.protection.xp-9.9)<1e-10);
+  assert.ok(Math.abs(next.warding.xp-16.335)<1e-10);
+  assert.ok(Math.abs(next['arcane-ward'].xp-26.95275)<1e-10);
+  assert.deepEqual(next.restoration,{level:0,xp:0});
+});
+
+test('mend and ward primary magnitudes use their own hierarchy multipliers',()=>{
+  const progression=createDefaultSkillProgression();
+  for(const id of ARCANE_MEND_SKILL_PATH){
+    progression[id]={level:100,xp:0};
+  }
+  for(const id of ARCANE_WARD_SKILL_PATH){
+    progression[id]={level:100,xp:0};
+  }
+
+  assert.ok(Math.abs(
+    applyMagicEffectSkill(
+      arcaneMendSpell.effect.baseAmount,
+      progression,
+      ARCANE_MEND_SKILL_PATH
+    )-(25*(1.2**4))
+  )<1e-10);
+
+  assert.ok(Math.abs(
+    applyMagicEffectSkill(
+      arcaneWardSpell.effect.baseMagnitude,
+      progression,
+      ARCANE_WARD_SKILL_PATH
+    )-(0.10*(1.2**4))
+  )<1e-10);
+});
+
+
+test('spell availability enforces unlock mana and meaningful healing',()=>{
+  const base={magicLevel:20,mana:100,hp:50,maxHp:100};
+  assert.equal(canCastMagicSpell(arcaneFocusSpell,base),true);
+  assert.equal(canCastMagicSpell(arcaneMendSpell,base),true);
+  assert.equal(canCastMagicSpell(arcaneWardSpell,base),true);
+
+  assert.equal(canCastMagicSpell(arcaneMendSpell,{...base,magicLevel:9}),false);
+  assert.equal(canCastMagicSpell(arcaneWardSpell,{...base,magicLevel:19}),false);
+  assert.equal(canCastMagicSpell(arcaneMendSpell,{...base,mana:34}),false);
+  assert.equal(canCastMagicSpell(arcaneMendSpell,{...base,hp:100}),false);
+});
+
+test('mage auto magic priority is heal then ward then focus',()=>{
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:35,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-mend');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:60,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-ward');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:90,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-focus');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:100,hp:90,maxHp:100,
+    focusRoundsRemaining:3,wardRoundsRemaining:3
+  }),null);
+});
+
+test('auto magic falls through locked or unaffordable higher priority spells',()=>{
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:9,mana:100,hp:35,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-focus');
+
+  assert.equal(chooseMageAutoSpellId({
+    magicLevel:20,mana:20,hp:35,maxHp:100,
+    focusRoundsRemaining:0,wardRoundsRemaining:0
+  }),'arcane-focus');
 });

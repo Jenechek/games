@@ -6,7 +6,7 @@ import {
   endSummonRound,
   resolveAutomaticSummonAttack
 } from '../summons/summons.js';
-import { cappedChance, effectiveEvasion,physicalMitigationAfterPenetration } from './mitigation.js';
+import { cappedChance,combineDiminishingPercentages,effectiveEvasion,physicalMitigationAfterPenetration } from './mitigation.js';
 import type {
   CombatAction,
   CombatLogEntry,
@@ -30,7 +30,7 @@ function cloneState(state:CombatState):CombatState {
   };
 }
 function defeated(c:CombatantState):boolean { return c.hp<=0; }
-function effectMagnitude(combatant:CombatantState,id:'might'|'focus'):number{
+function effectMagnitude(combatant:CombatantState,id:'might'|'focus'|'ward'):number{
   return combatant.effects?.find(effect=>effect.id===id)?.magnitude??0;
 }
 
@@ -67,7 +67,13 @@ function resolveAttack(
     }
   }
 
-  const mitigation=physicalMitigationAfterPenetration(target.damageMitigation??0,0);
+  const mitigation=physicalMitigationAfterPenetration(
+    combineDiminishingPercentages([
+      target.damageMitigation??0,
+      effectMagnitude(target,'ward')
+    ]),
+    0
+  );
   damage*=1-mitigation;
   const rounded=Math.max(1,Math.round(damage));
   target.hp=Math.max(0,target.hp-rounded);
@@ -101,8 +107,50 @@ function applyAction(
   }
   if(action.type==='magic'){
     const manaCost=Math.max(0,action.manaCost);
-    const magnitude=Math.max(0,action.effect.magnitude);
-    if(actor.mana<manaCost||magnitude<=0){
+    if(actor.mana<manaCost){
+      return {
+        success:false,
+        damage:0,
+        magicSkillPath:action.skillPath,
+        magicEffectApplied:false
+      };
+    }
+
+    if(action.effect.kind==='heal'){
+      const amount=Math.max(0,action.effect.amount);
+      const missing=Math.max(0,actor.maxHp-actor.hp);
+      if(amount<=0||missing<=0){
+        return {
+          success:false,
+          damage:0,
+          magicSkillPath:action.skillPath,
+          magicEffectApplied:false
+        };
+      }
+      actor.mana=Math.max(0,actor.mana-manaCost);
+      actor.hp=Math.min(actor.maxHp,actor.hp+amount);
+      return {
+        success:true,
+        damage:0,
+        magicSkillPath:action.skillPath,
+        magicEffectApplied:true
+      };
+    }
+
+    const buff=action.effect;
+    const magnitude=Math.max(0,buff.magnitude);
+    if(magnitude<=0){
+      return {
+        success:false,
+        damage:0,
+        magicSkillPath:action.skillPath,
+        magicEffectApplied:false
+      };
+    }
+    const rounds=Math.max(1,Math.floor(buff.rounds));
+    const existing=actor.effects?.find(effect=>effect.id===buff.id);
+    // An unchanged buff is not an applied magic effect: no mana or skill XP.
+    if(existing && existing.magnitude>=magnitude && existing.roundsRemaining>=rounds){
       return {
         success:false,
         damage:0,
@@ -111,14 +159,12 @@ function applyAction(
       };
     }
     actor.mana=Math.max(0,actor.mana-manaCost);
-    const rounds=Math.max(1,Math.floor(action.effect.rounds));
-    const existing=actor.effects?.find(effect=>effect.id===action.effect.id);
     if(existing){
       existing.magnitude=Math.max(existing.magnitude,magnitude);
       existing.roundsRemaining=Math.max(existing.roundsRemaining,rounds);
     }else{
       actor.effects=[...(actor.effects??[]),{
-        id:action.effect.id,
+        id:buff.id,
         magnitude,
         roundsRemaining:rounds
       }];

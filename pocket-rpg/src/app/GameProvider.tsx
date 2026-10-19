@@ -116,7 +116,12 @@ import {
 import type { PlayerClassId } from '../game-core/classes/types';
 import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
-import { arcaneFocusSpell } from '../content/magic';
+import {
+  canCastMagicSpell,
+  chooseMageAutoSpellId,
+  magicSpells,
+  type MagicSpellId
+} from '../content/magic';
 import {
   applyArmorActionProgression,
   applyArmorMitigationSkill,
@@ -145,7 +150,7 @@ interface Commands {
   travelTo(id:string):void;
   startEncounter():void;
   manualAttack():void;
-  manualMagicFocus():void;
+  manualCastMagic(spellId:MagicSpellId):void;
   togglePause():void;
   setMode(v:'auto'|'manual'):void;
   setStyle(v:CombatStyle):void;
@@ -304,32 +309,64 @@ function loadoutShieldBlock(
   return applyBlockingChanceSkill(base,progression,blockingPath);
 }
 
-function mageFocusAction(
-  state:RuntimeState
+function magicSpellAction(
+  state:RuntimeState,
+  spellId:MagicSpellId
 ):CombatAction|null{
   if(state.classState.classId!=='mage'||!state.combat)return null;
-  if(state.combat.player.mana<arcaneFocusSpell.manaCost)return null;
+  const spell=magicSpells[spellId];
+  if(!canCastMagicSpell(spell,{
+    magicLevel:state.skillProgression.magic.level,
+    mana:state.combat.player.mana,
+    hp:state.combat.player.hp,
+    maxHp:state.combat.player.maxHp
+  }))return null;
+
+  if(spell.effect.kind==='heal'){
+    return {
+      type:'magic',
+      manaCost:spell.manaCost,
+      skillPath:spell.skillPath,
+      effect:{
+        kind:'heal',
+        amount:applyMagicEffectSkill(
+          spell.effect.baseAmount,
+          state.skillProgression,
+          spell.skillPath
+        )
+      }
+    };
+  }
+
   return {
     type:'magic',
-    manaCost:arcaneFocusSpell.manaCost,
-    skillPath:arcaneFocusSpell.skillPath,
+    manaCost:spell.manaCost,
+    skillPath:spell.skillPath,
     effect:{
-      id:'focus',
+      kind:'buff',
+      id:spell.effect.effectId,
       magnitude:applyMagicEffectSkill(
-        arcaneFocusSpell.baseMagnitude,
+        spell.effect.baseMagnitude,
         state.skillProgression,
-        arcaneFocusSpell.skillPath
+        spell.skillPath
       ),
-      rounds:arcaneFocusSpell.durationRounds
+      rounds:spell.effect.durationRounds
     }
   };
 }
 
-function shouldAutoCastMageFocus(state:RuntimeState):boolean{
-  if(!mageFocusAction(state))return false;
-  return !(state.combat?.player.effects??[]).some(effect=>
-    effect.id==='focus'&&effect.roundsRemaining>1
-  );
+function chooseAutoMageSpell(state:RuntimeState):MagicSpellId|null{
+  if(state.classState.classId!=='mage'||!state.combat)return null;
+  const focus=state.combat.player.effects?.find(effect=>effect.id==='focus');
+  const ward=state.combat.player.effects?.find(effect=>effect.id==='ward');
+  return chooseMageAutoSpellId({
+    magicLevel:state.skillProgression.magic.level,
+    mana:state.combat.player.mana,
+    hp:state.combat.player.hp,
+    maxHp:state.combat.player.maxHp,
+    focusRoundsRemaining:focus?.roundsRemaining,
+    wardRoundsRemaining:ward?.roundsRemaining
+  });
 }
 
 function stateLoadRatio(
@@ -703,8 +740,9 @@ export function GameProvider({children}:{children:React.ReactNode}){
     const id=setInterval(()=>setState(s=>{
       if(!s.combat||s.paused||s.combatMode!=='auto')return s;
       const pc=chooseAutoAction(s.combat,'player',rng.current);
-      if(shouldAutoCastMageFocus(s)){
-        const magic=mageFocusAction(s);
+      const autoSpellId=chooseAutoMageSpell(s);
+      if(autoSpellId){
+        const magic=magicSpellAction(s,autoSpellId);
         if(magic)pc.main=magic;
       }
       pc.style=s.style;
@@ -795,14 +833,15 @@ export function GameProvider({children}:{children:React.ReactNode}){
         return{...afterRound,combatItemUsedRound:null};
       });
     },
-    manualMagicFocus(){
+    manualCastMagic(spellId){
       setState(s=>{
         if(!s.combat)return s;
-        const magic=mageFocusAction(s);
+        const spell=magicSpells[spellId];
+        const magic=magicSpellAction(s,spellId);
         if(!magic){
           return{
             ...s,
-            log:[...s.log,'Магический фокус сейчас недоступен.']
+            log:[...s.log,`${spell.label} сейчас недоступно.`]
           };
         }
         const ec=chooseAutoAction(s.combat,'enemy',rng.current);
@@ -845,7 +884,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         return{
           ...afterRound,
           combatItemUsedRound:null,
-          log:[...afterRound.log,`Применено: ${arcaneFocusSpell.label}.`]
+          log:[...afterRound.log,`Применено: ${spell.label}.`]
         };
       });
     },

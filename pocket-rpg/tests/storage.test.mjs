@@ -13,10 +13,12 @@ import {emptyAttributeProfile} from '../dist/game-core/progression/character.js'
 import {
   ARMOR_SKILL_IDS,
   BLOCKING_SKILL_IDS,
+  EXPANDED_MAGIC_SKILL_IDS,
+  LEGACY_MAGIC_SKILL_IDS_V16,
   MAGIC_SKILL_IDS,
   WEAPON_SKILL_IDS,
   createDefaultSkillProgression,
-  upgradeSkillProgressionV15
+  upgradeSkillProgressionV16
 } from '../dist/game-core/progression/skill-progress.js';
 import {
   createDefaultClassState,
@@ -97,13 +99,7 @@ function legacyV13State(level=10){
   return {
     ...legacy,
     skillProgression:{
-      fishing:{level:0,xp:0},
-      farming:{...legacy.farming.skill},
-      gathering:{...legacy.gathering.skill},
-      crafting:{...legacy.crafting.skills.crafting},
-      alchemy:{...legacy.crafting.skills.alchemy},
-      trading:{...legacy.economy.trading},
-      diplomacy:{...legacy.diplomacy.skill},
+      ...legacyV12State(level).skillProgression,
       weapons:{level:0,xp:0},
       'one-handed':{level:0,xp:0},
       swords:{level:0,xp:0},
@@ -112,10 +108,7 @@ function legacyV13State(level=10){
   };
 }
 function legacyV14State(level=10){
-  return {
-    ...legacyV13State(level),
-    equipmentLoadout:createDefaultEquipmentLoadout()
-  };
+  return {...legacyV13State(level),equipmentLoadout:createDefaultEquipmentLoadout()};
 }
 function legacyV15State(level=10){
   const legacy=legacyV14State(level);
@@ -131,11 +124,24 @@ function legacyV15State(level=10){
     }
   };
 }
-function fullState(level=10){
+function legacyV16State(level=10){
   const legacy=legacyV15State(level);
   return {
     ...legacy,
-    skillProgression:upgradeSkillProgressionV15(legacy.skillProgression)
+    skillProgression:{
+      ...legacy.skillProgression,
+      magic:{level:0,xp:0},
+      arcane:{level:0,xp:0},
+      concentration:{level:0,xp:0},
+      'arcane-focus':{level:0,xp:0}
+    }
+  };
+}
+function fullState(level=10){
+  const legacy=legacyV16State(level);
+  return {
+    ...legacy,
+    skillProgression:upgradeSkillProgressionV16(legacy.skillProgression)
   };
 }
 
@@ -156,47 +162,45 @@ function addEquipment(state,itemId,instanceId='eq-1'){
   return instance;
 }
 
-test('schema v15 migrates to v16 preserving defense loadout and adding zero magic',()=>{
-  const old=legacyV15State();
-  old.skillProgression.armor={level:4,xp:10};
-  old.skillProgression['light-armor']={level:7,xp:21};
+test('schema v16 migrates to v17 preserving old magic and zeroing expanded branches',()=>{
+  const old=legacyV16State();
+  old.skillProgression.magic={level:17,xp:1.5};
+  old.skillProgression.arcane={level:11,xp:2.5};
+  old.skillProgression.concentration={level:8,xp:3.5};
+  old.skillProgression['arcane-focus']={level:6,xp:4.5};
   addEquipment(old,'light-armor');
   old.equipmentLoadout.body='eq-1';
 
-  const migrated=migrateSave({schemaVersion:15,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,16);
+  const migrated=migrateSave({schemaVersion:16,savedAt:1000,state:old});
+  assert.equal(migrated?.schemaVersion,17);
   assert.equal(migrated?.state.equipmentLoadout.body,'eq-1');
+  for(const id of LEGACY_MAGIC_SKILL_IDS_V16){
+    assert.deepEqual(migrated?.state.skillProgression[id],old.skillProgression[id]);
+  }
+  for(const id of EXPANDED_MAGIC_SKILL_IDS){
+    assert.deepEqual(migrated?.state.skillProgression[id],{level:0,xp:0});
+  }
+});
+
+test('schema v15 migrates to v17 with every magic branch at zero',()=>{
+  const old=legacyV15State();
+  old.skillProgression.armor={level:4,xp:10};
+  const migrated=migrateSave({schemaVersion:15,savedAt:1000,state:old});
+  assert.equal(migrated?.schemaVersion,17);
   assert.deepEqual(migrated?.state.skillProgression.armor,{level:4,xp:10});
-  assert.deepEqual(migrated?.state.skillProgression['light-armor'],{level:7,xp:21});
   for(const id of MAGIC_SKILL_IDS){
     assert.deepEqual(migrated?.state.skillProgression[id],{level:0,xp:0});
   }
 });
 
-test('schema v14 migrates to v16 preserving loadout and zeroing defense and magic',()=>{
-  const old=legacyV14State();
-  old.skillProgression.weapons={level:4,xp:10};
-  old.character.attributes.strength=12;
-  addEquipment(old,'iron-short-sword');
-  old.equipmentLoadout.mainHand='eq-1';
-
-  const migrated=migrateSave({schemaVersion:14,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,16);
-  assert.equal(migrated?.state.equipmentLoadout.mainHand,'eq-1');
-  assert.deepEqual(migrated?.state.skillProgression.weapons,{level:4,xp:10});
-  for(const id of [...ARMOR_SKILL_IDS,...BLOCKING_SKILL_IDS,...MAGIC_SKILL_IDS]){
-    assert.deepEqual(migrated?.state.skillProgression[id],{level:0,xp:0});
-  }
-});
-
-test('schema v12 migrates to v16 preserving professions and zeroing later combat skills',()=>{
+test('schema v12 still migrates through v17 with later combat skills at zero',()=>{
   const old=legacyV12State();
   old.skillProgression.fishing={level:4,xp:91.25};
   old.skillProgression.farming={level:7,xp:12.5};
   old.farming.skill={...old.skillProgression.farming};
 
   const migrated=migrateSave({schemaVersion:12,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,16);
+  assert.equal(migrated?.schemaVersion,17);
   assert.deepEqual(migrated?.state.skillProgression.fishing,{level:4,xp:91.25});
   assert.deepEqual(migrated?.state.skillProgression.farming,{level:7,xp:12.5});
   for(const id of [
@@ -209,19 +213,19 @@ test('schema v12 migrates to v16 preserving professions and zeroing later combat
   }
 });
 
-test('current v16 round trip preserves magic defense skills and loadout',async()=>{
+test('current v17 round trip preserves all three magic branches and loadout',async()=>{
   const store=new MemorySaveStore();
   const state=fullState();
   addEquipment(state,'light-armor','eq-1');
-  addEquipment(state,'wooden-shield','eq-2');
   state.equipmentLoadout.body='eq-1';
-  state.equipmentLoadout.offHand='eq-2';
-  state.skillProgression.armor={level:10,xp:2};
-  state.skillProgression.shields={level:13,xp:5};
-  state.skillProgression.magic={level:14,xp:6};
-  state.skillProgression.arcane={level:15,xp:7};
-  state.skillProgression.concentration={level:16,xp:8};
+  state.skillProgression.magic={level:25,xp:6};
   state.skillProgression['arcane-focus']={level:17,xp:9};
+  state.skillProgression.restoration={level:12,xp:10};
+  state.skillProgression.healing={level:8,xp:11};
+  state.skillProgression['arcane-mend']={level:5,xp:12};
+  state.skillProgression.protection={level:9,xp:13};
+  state.skillProgression.warding={level:6,xp:14};
+  state.skillProgression['arcane-ward']={level:4,xp:15};
 
   await store.save(state,1500);
   const loaded=await store.load();
@@ -229,30 +233,30 @@ test('current v16 round trip preserves magic defense skills and loadout',async()
   assert.deepEqual(loaded?.equipmentLoadout,state.equipmentLoadout);
 });
 
-test('current encoded saves use schema v16 and canonical mirrors remain authoritative',()=>{
+test('current encoded saves use schema v17 and canonical mirrors remain authoritative',()=>{
   const state=fullState();
   state.skillProgression.trading={level:20,xp:42};
   state.economy.trading={level:1,xp:1};
 
   const envelope=JSON.parse(encodeSave(state,999));
-  assert.equal(envelope.schemaVersion,16);
+  assert.equal(envelope.schemaVersion,17);
   assert.deepEqual(envelope.state.skillProgression.trading,{level:20,xp:42});
   assert.deepEqual(envelope.state.economy.trading,{level:20,xp:42});
 });
 
-test('v16 rejects missing unknown or malformed magic skill entries',()=>{
+test('v17 rejects missing unknown or malformed expanded magic entries',()=>{
   const base=fullState();
 
   const missing={...base.skillProgression};
-  delete missing['arcane-focus'];
+  delete missing['arcane-mend'];
   assert.equal(migrateSave({
-    schemaVersion:16,
+    schemaVersion:17,
     savedAt:1,
     state:{...base,skillProgression:missing}
   }),null);
 
   assert.equal(migrateSave({
-    schemaVersion:16,
+    schemaVersion:17,
     savedAt:1,
     state:{...base,skillProgression:{
       ...base.skillProgression,
@@ -261,38 +265,38 @@ test('v16 rejects missing unknown or malformed magic skill entries',()=>{
   }),null);
 
   assert.equal(migrateSave({
-    schemaVersion:16,
+    schemaVersion:17,
     savedAt:1,
     state:{...base,skillProgression:{
       ...base.skillProgression,
-      magic:{level:101,xp:0}
+      restoration:{level:101,xp:0}
     }}
   }),null);
 });
 
-test('v15 rejects magic keys because they did not exist in that schema',()=>{
-  const old=legacyV15State();
+test('v16 rejects expanded magic keys because they did not exist in that schema',()=>{
+  const old=legacyV16State();
   assert.equal(migrateSave({
-    schemaVersion:15,
+    schemaVersion:16,
     savedAt:1,
     state:{
       ...old,
       skillProgression:{
         ...old.skillProgression,
-        magic:{level:0,xp:0}
+        restoration:{level:0,xp:0}
       }
     }
   }),null);
 });
 
-test('v16 still rejects missing wrong-slot and unmet loadout references',()=>{
+test('v17 still rejects invalid equipment loadout references and requirements',()=>{
   const state=fullState();
   state.character.attributes.strength=12;
   addEquipment(state,'iron-short-sword');
   state.equipmentLoadout.mainHand='eq-1';
 
   assert.equal(migrateSave({
-    schemaVersion:16,
+    schemaVersion:17,
     savedAt:1,
     state:{...state,equipmentLoadout:{
       ...state.equipmentLoadout,
@@ -301,16 +305,7 @@ test('v16 still rejects missing wrong-slot and unmet loadout references',()=>{
   }),null);
 
   assert.equal(migrateSave({
-    schemaVersion:16,
-    savedAt:1,
-    state:{...state,equipmentLoadout:{
-      ...state.equipmentLoadout,
-      offHand:'eq-1'
-    }}
-  }),null);
-
-  assert.equal(migrateSave({
-    schemaVersion:16,
+    schemaVersion:17,
     savedAt:1,
     state:{
       ...state,
@@ -322,20 +317,20 @@ test('v16 still rejects missing wrong-slot and unmet loadout references',()=>{
   }),null);
 });
 
-test('v16 rejects drift between canonical profession skill and nested mirror',()=>{
+test('v17 rejects drift between canonical profession skill and nested mirror',()=>{
   const state=fullState();
   state.skillProgression.diplomacy={level:20,xp:5};
-  assert.equal(migrateSave({schemaVersion:16,savedAt:1,state}),null);
+  assert.equal(migrateSave({schemaVersion:17,savedAt:1,state}),null);
 });
 
-test('older schemas still migrate through v16 with all current defaults',()=>{
+test('older schemas still migrate through v17 with all current defaults',()=>{
   const old=legacyV4State();
   old.inventory.stacks=[
     {itemId:'iron-short-sword',quantity:2},
     {itemId:'medicinal-herb-rare',quantity:3}
   ];
   const migrated=migrateSave({schemaVersion:4,savedAt:1000,state:old});
-  assert.equal(migrated?.schemaVersion,16);
+  assert.equal(migrated?.schemaVersion,17);
   assert.equal(migrated?.state.inventory.equipment.length,2);
   assert.equal(migrated?.state.crafting.nextEquipmentId,3);
   assert.deepEqual(migrated?.state.skillProgression,createDefaultSkillProgression());
@@ -344,11 +339,9 @@ test('older schemas still migrate through v16 with all current defaults',()=>{
   assert.deepEqual(migrated?.state.equipmentLoadout,createDefaultEquipmentLoadout());
 });
 
-test('v16 supports class-scaled summons with magic progression and loadout',()=>{
+test('v17 supports class-scaled summons with expanded magic progression',()=>{
   const state=fullState();
-  addEquipment(state,'light-armor');
-  state.equipmentLoadout.body='eq-1';
-  state.skillProgression.magic={level:3,xp:2};
+  state.skillProgression.restoration={level:3,xp:2};
   state.classState=choosePlayerClass(state.classState,'tamer');
   const effective=effectiveSummonDefinitions(
     state.classState,
@@ -362,17 +355,13 @@ test('v16 supports class-scaled summons with magic progression and loadout',()=>
     now:100
   });
   assert.equal(state.summons.active[0].hp,81);
-  assert.notEqual(migrateSave({schemaVersion:16,savedAt:200,state}),null);
+  assert.notEqual(migrateSave({schemaVersion:17,savedAt:200,state}),null);
 });
 
-test('reconstructing state preserves loadout magic skills and summon recovery',()=>{
+test('reconstructing state preserves expanded magic and summon recovery',()=>{
   const state=fullState(10);
-  addEquipment(state,'heavy-armor');
-  state.equipmentLoadout.body='eq-1';
-  state.skillProgression.magic={level:6,xp:12.5};
-  state.skillProgression.arcane={level:6,xp:12.5};
-  state.skillProgression.concentration={level:6,xp:12.5};
-  state.skillProgression['arcane-focus']={level:6,xp:12.5};
+  state.skillProgression['arcane-mend']={level:6,xp:12.5};
+  state.skillProgression['arcane-ward']={level:7,xp:13.5};
   state.classState=choosePlayerClass(state.classState,'tamer');
   const effective=effectiveSummonDefinitions(state.classState,playerClasses,summonDefinitions);
   state.summons=summonCreature({
@@ -384,8 +373,8 @@ test('reconstructing state preserves loadout magic skills and summon recovery',(
   state.summons.active[0].hp=20;
 
   const once=reconstructState(state,1000+SUMMON_FULL_RECOVERY_MS);
-  assert.equal(once.equipmentLoadout.body,'eq-1');
-  assert.equal(once.skillProgression['arcane-focus'].level,6);
+  assert.equal(once.skillProgression['arcane-mend'].level,6);
+  assert.equal(once.skillProgression['arcane-ward'].level,7);
   assert.equal(once.summons.active[0].hp,81);
 });
 

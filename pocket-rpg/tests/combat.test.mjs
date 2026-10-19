@@ -172,7 +172,7 @@ test('successful magic action spends mana applies focus and exposes magic path',
         type:'magic',
         manaCost:20,
         skillPath:['magic','arcane','concentration','arcane-focus'],
-        effect:{id:'focus',magnitude:0.08,rounds:3}
+        effect:{kind:'buff',id:'focus',magnitude:0.08,rounds:3}
       }},
       enemy:{main:{type:'wait'}}
     },
@@ -202,7 +202,7 @@ test('magic action without enough mana applies no effect and is not marked as us
         type:'magic',
         manaCost:20,
         skillPath:['magic','arcane','concentration','arcane-focus'],
-        effect:{id:'focus',magnitude:0.08,rounds:3}
+        effect:{kind:'buff',id:'focus',magnitude:0.08,rounds:3}
       }},
       enemy:{main:{type:'wait'}}
     },
@@ -224,7 +224,7 @@ test('zero magnitude magic action applies nothing and cannot spend mana',()=>{
         type:'magic',
         manaCost:20,
         skillPath:['magic'],
-        effect:{id:'focus',magnitude:0,rounds:3}
+        effect:{kind:'buff',id:'focus',magnitude:0,rounds:3}
       }},
       enemy:{main:{type:'wait'}}
     },
@@ -245,11 +245,121 @@ test('negative magic mana cost cannot restore mana',()=>{
         type:'magic',
         manaCost:-20,
         skillPath:['magic'],
-        effect:{id:'focus',magnitude:0.08,rounds:3}
+        effect:{kind:'buff',id:'focus',magnitude:0.08,rounds:3}
       }},
       enemy:{main:{type:'wait'}}
     },
     {chance:()=>true}
   );
   assert.equal(result.state.player.mana,65);
+});
+
+
+test('magic heal restores HP spends mana and logs an applied magical effect',()=>{
+  const state=baseCombat();
+  state.player.hp=60;
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:35,
+        skillPath:['magic','restoration','healing','arcane-mend'],
+        effect:{kind:'heal',amount:25}
+      }},
+      enemy:{main:{type:'wait'}}
+    },
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.hp,85);
+  assert.equal(result.state.player.mana,30);
+  const entry=result.log.find(x=>x.phase==='player-main');
+  assert.equal(entry?.success,true);
+  assert.equal(entry?.magicEffectApplied,true);
+});
+
+test('magic heal at full HP applies nothing and does not spend mana',()=>{
+  const state=baseCombat();
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:35,
+        skillPath:['magic','restoration','healing','arcane-mend'],
+        effect:{kind:'heal',amount:25}
+      }},
+      enemy:{main:{type:'wait'}}
+    },
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.hp,100);
+  assert.equal(result.state.player.mana,65);
+  const entry=result.log.find(x=>x.phase==='player-main');
+  assert.equal(entry?.success,false);
+  assert.equal(entry?.magicEffectApplied,false);
+});
+
+test('magic ward combines with mitigation and protects in the same round',()=>{
+  const state=baseCombat();
+  const rng={chance:p=>p===0.1?false:true};
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:30,
+        skillPath:['magic','protection','warding','arcane-ward'],
+        effect:{kind:'buff',id:'ward',magnitude:0.10,rounds:3}
+      }},
+      enemy:{main:{type:'attack'}}
+    },
+    rng
+  );
+  assert.equal(result.state.player.hp,91);
+  assert.equal(result.state.player.mana,35);
+  const ward=result.state.player.effects?.find(effect=>effect.id==='ward');
+  assert.ok(ward);
+  assert.equal(ward.magnitude,0.10);
+  assert.equal(ward.roundsRemaining,2);
+});
+
+test('ward uses diminishing stacking with existing physical mitigation',()=>{
+  const state=baseCombat();
+  state.player.damageMitigation=0.20;
+  const rng={chance:p=>p===0.1?false:true};
+  const result=resolveRound(
+    state,
+    {
+      player:{main:{
+        type:'magic',
+        manaCost:30,
+        skillPath:['magic','protection','warding','arcane-ward'],
+        effect:{kind:'buff',id:'ward',magnitude:0.10,rounds:3}
+      }},
+      enemy:{main:{type:'attack'}}
+    },
+    rng
+  );
+  assert.equal(result.state.player.hp,93);
+});
+
+test('redundant weaker magic buff does not spend mana or grant magic XP',()=>{
+  const state=baseCombat();
+  state.player.effects=[{id:'ward',magnitude:0.20,roundsRemaining:4}];
+  const result=resolveRound(
+    state,
+    {player:{main:{
+      type:'magic',manaCost:30,
+      skillPath:['magic','protection','warding','arcane-ward'],
+      effect:{kind:'buff',id:'ward',magnitude:0.10,rounds:3}
+    }},enemy:{main:{type:'wait'}}},
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.mana,65);
+  assert.equal(result.state.player.effects[0].magnitude,0.20);
+  assert.equal(result.state.player.effects[0].roundsRemaining,3);
+  const entry=result.log.find(x=>x.phase==='player-main');
+  assert.equal(entry?.success,false);
+  assert.equal(entry?.magicEffectApplied,false);
 });

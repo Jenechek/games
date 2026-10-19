@@ -2,7 +2,7 @@ import type { SummonCombatState } from '../summons/types.js';
 export type CombatStyle='balanced'|'aggressive'|'defensive'|'evasive';
 
 export interface CombatEffectState {
-  id:'might'|'focus';
+  id:'might'|'focus'|'ward';
   magnitude:number;
   roundsRemaining:number;
 }
@@ -16,11 +16,17 @@ export type CombatAction =
       type:'magic';
       manaCost:number;
       skillPath:readonly string[];
-      effect:{
-        id:CombatEffectState['id'];
-        magnitude:number;
-        rounds:number;
-      };
+      effect:
+        | {
+            kind:'buff';
+            id:CombatEffectState['id'];
+            magnitude:number;
+            rounds:number;
+          }
+        | {
+            kind:'heal';
+            amount:number;
+          };
     };
 
 export interface CombatantState {

@@ -18,7 +18,7 @@ import { summonDefinitions } from '../content/summons.js';
 import type { ClassState } from './classes/types.js';
 import { effectiveSummonDefinitions } from './classes/classes.js';
 import { playerClasses } from '../content/classes.js';
-import type { SkillProgressionState } from './progression/skill-progress.js';
+import type { LegacySkillProgressionStateV12,SkillProgressionState } from './progression/skill-progress.js';
 
 export interface LegacyCharacterPersistentState {
   level:number;
@@ -60,6 +60,9 @@ export interface LegacyGameStateV10 extends LegacyGameStateV9 {
 }
 export interface LegacyGameStateV11 extends LegacyGameStateV10 {
   classState:ClassState;
+}
+export interface LegacyGameStateV12 extends LegacyGameStateV11 {
+  skillProgression:LegacySkillProgressionStateV12;
 }
 export interface GameState extends LegacyGameStateV11 {
   skillProgression:SkillProgressionState;

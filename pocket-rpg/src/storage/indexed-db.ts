@@ -10,7 +10,8 @@ import type {
   LegacyGameStateV8,
   LegacyGameStateV9,
   LegacyGameStateV10,
-  LegacyGameStateV11
+  LegacyGameStateV11,
+  LegacyGameStateV12
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -25,17 +26,22 @@ import {
 import { emptyAttributeProfile } from '../game-core/progression/character.js';
 import {
   collectLegacySkillProgression,
-  synchronizeSkillMirrors
+  synchronizeSkillMirrors,
+  upgradeSkillProgressionV12
 } from '../game-core/progression/skill-progress.js';
-import type { SkillProgressionState } from '../game-core/progression/skill-progress.js';
+import type {
+  LegacySkillProgressionStateV12,
+  SkillProgressionState
+} from '../game-core/progression/skill-progress.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
 import { createDefaultClassState } from '../game-core/classes/classes.js';
 import { starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV12 } from './schema.js';
+import type { SaveEnvelopeV13 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
 type SaveInput=
   |GameState
+  |LegacyGameStateV12
   |LegacyGameStateV11
   |LegacyGameStateV10
   |LegacyGameStateV9
@@ -68,9 +74,11 @@ function persistentCharacter(
 
 function finalizeState(
   state:LegacyGameStateV11,
-  progression?:SkillProgressionState
+  progression?:SkillProgressionState|LegacySkillProgressionStateV12
 ):GameState{
-  const skillProgression=progression??collectLegacySkillProgression({
+  const skillProgression=progression
+    ?('weapons' in progression?progression:upgradeSkillProgressionV12(progression))
+    :collectLegacySkillProgression({
     farming:state.farming,
     gathering:state.gathering,
     crafting:state.crafting,
@@ -188,8 +196,8 @@ function normalizeState(state:SaveInput):GameState{
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV12={
-    schemaVersion:12,
+  const envelope:SaveEnvelopeV13={
+    schemaVersion:13,
     savedAt,
     state:normalizeState(state)
   };

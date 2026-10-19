@@ -283,6 +283,9 @@ export function validateEquipmentLoadout(
   itemDefs:Record<string,ItemDefinition>,
   character?:EquipCharacter
 ):boolean{
+  const keys=Object.keys(loadout);
+  if(keys.length!==EQUIPMENT_SLOTS.length)return false;
+  if(!keys.every(key=>isEquipmentSlot(key)))return false;
   const used=new Set<string>();
   for(const slot of EQUIPMENT_SLOTS){
     const id=loadout[slot];

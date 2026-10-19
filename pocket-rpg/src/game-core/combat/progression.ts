@@ -181,12 +181,15 @@ export function applyMagicActionProgression(
   skillPath:readonly string[]|undefined,
   success:boolean
 ):SkillProgressionState{
-  return applyCombatDomainProgression(
+  const path=normalizedCombatSkillPath(progression,skillPath);
+  if(path.length===0)return progression;
+  const domainXp=actionXp(success)*COMBAT_DOMAIN_XP_WEIGHTS.magic;
+  return applyWeightedSkillUse(
     progression,
-    skillPath,
-    success,
-    COMBAT_DOMAIN_XP_WEIGHTS.magic
-  );
+    skills,
+    path.map(skillId=>({skillId,weight:1})),
+    domainXp
+  ) as SkillProgressionState;
 }
 
 export function applyMagicEffectSkill(

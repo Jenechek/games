@@ -845,6 +845,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             gold:s.gold+quote.total,
             inventory,
             economy,
+            skillProgression:{...s.skillProgression,trading:{...economy.trading}},
             fishing:null,
             farmingWork:null,
             gatheringSession:null,

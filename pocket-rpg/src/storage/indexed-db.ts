@@ -13,7 +13,8 @@ import type {
   LegacyGameStateV11,
   LegacyGameStateV12,
   LegacyGameStateV13,
-  LegacyGameStateV14
+  LegacyGameStateV14,
+  LegacyGameStateV15
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -30,11 +31,13 @@ import {
   collectLegacySkillProgression,
   synchronizeSkillMirrors,
   upgradeSkillProgressionV12,
-  upgradeSkillProgressionV14
+  upgradeSkillProgressionV14,
+  upgradeSkillProgressionV15
 } from '../game-core/progression/skill-progress.js';
 import type {
   LegacySkillProgressionStateV12,
   LegacySkillProgressionStateV14,
+  LegacySkillProgressionStateV15,
   SkillProgressionState
 } from '../game-core/progression/skill-progress.js';
 import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
@@ -42,11 +45,12 @@ import { createDefaultClassState } from '../game-core/classes/classes.js';
 import { createDefaultEquipmentLoadout,pruneInvalidEquipmentLoadout } from '../game-core/items/equipment.js';
 import { starterRecipeIds } from '../content/crafting.js';
 import { itemDefs } from '../content/items.js';
-import type { SaveEnvelopeV15 } from './schema.js';
+import type { SaveEnvelopeV16 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
 type SaveInput=
   |GameState
+  |LegacyGameStateV15
   |LegacyGameStateV14
   |LegacyGameStateV13
   |LegacyGameStateV12
@@ -86,14 +90,16 @@ type CurrentSkillBase=LegacyGameStateV11&{
 
 function finalizeState(
   state:LegacyGameStateV11,
-  progression?:SkillProgressionState|LegacySkillProgressionStateV12|LegacySkillProgressionStateV14
+  progression?:SkillProgressionState|LegacySkillProgressionStateV12|LegacySkillProgressionStateV14|LegacySkillProgressionStateV15
 ):CurrentSkillBase{
   const skillProgression=progression
-    ?('armor' in progression
+    ?('magic' in progression
       ?progression
-      :('weapons' in progression
-        ?upgradeSkillProgressionV14(progression)
-        :upgradeSkillProgressionV12(progression)))
+      :('armor' in progression
+        ?upgradeSkillProgressionV15(progression)
+        :('weapons' in progression
+          ?upgradeSkillProgressionV14(progression)
+          :upgradeSkillProgressionV12(progression))))
     :collectLegacySkillProgression({
       farming:state.farming,
       gathering:state.gathering,
@@ -235,8 +241,8 @@ function normalizeState(state:SaveInput):GameState{
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV15={
-    schemaVersion:15,
+  const envelope:SaveEnvelopeV16={
+    schemaVersion:16,
     savedAt,
     state:normalizeState(state)
   };

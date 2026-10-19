@@ -6,6 +6,13 @@ export const skills=[
   {id:'swords',parentId:'one-handed',depth:2,label:'Мечи'},
   {id:'short-sword',parentId:'swords',depth:3,label:'Короткий меч'},
 
+  {id:'armor',parentId:null,depth:0,label:'Броня'},
+  {id:'body-armor',parentId:'armor',depth:1,label:'Нательная броня'},
+  {id:'light-armor',parentId:'body-armor',depth:2,label:'Лёгкая броня'},
+  {id:'heavy-armor',parentId:'body-armor',depth:2,label:'Тяжёлая броня'},
+
+  {id:'shields',parentId:null,depth:0,label:'Щиты'},
+
   {id:'professions',parentId:null,depth:0,label:'Профессии'},
   {id:'crafting',parentId:'professions',depth:1,label:'Ремесло'},
   {id:'tailoring',parentId:'crafting',depth:2,label:'Портняжное дело'},

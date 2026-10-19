@@ -7,6 +7,7 @@ import {
   applyArmorMitigationSkill,
   applyBlockingActionProgression,
   applyBlockingChanceSkill,
+  applyLoggedMagicProgression,
   applyMagicActionProgression,
   applyMagicEffectSkill,
   applyShortSwordAttackProgression,
@@ -277,4 +278,23 @@ test('authored Arcane Focus content declares the expected magic path and cost',(
   assert.equal(arcaneFocusSpell.baseMagnitude,0.08);
   assert.equal(arcaneFocusSpell.durationRounds,3);
   assert.deepEqual(arcaneFocusSpell.skillPath,ARCANE_FOCUS_SKILL_PATH);
+});
+
+
+test('logged magic progression requires a real applied magical effect',()=>{
+  const start=createDefaultSkillProgression();
+  const skipped=applyLoggedMagicProgression(start,{
+    magicEffectApplied:false,
+    magicSkillPath:['magic','arcane','concentration','arcane-focus'],
+    success:false
+  });
+  assert.equal(skipped,start);
+
+  const applied=applyLoggedMagicProgression(start,{
+    magicEffectApplied:true,
+    magicSkillPath:['magic','arcane','concentration','arcane-focus'],
+    success:true
+  });
+  assert.ok(Math.abs(applied.magic.xp-6)<1e-10);
+  assert.ok(Math.abs(applied['arcane-focus'].xp-26.95275)<1e-10);
 });

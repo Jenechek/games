@@ -77,11 +77,21 @@ function applyAction(
   action:CombatAction|undefined,
   rng:SeededRng,
   interceptors?:CombatState['summons']
-):void {
-  if(!action)return;
-  if(action.type==='heal')actor.hp=Math.min(actor.maxHp,actor.hp+action.amount);
-  else if(action.type==='stun')target.stunned=true;
-  else if(action.type==='attack')resolveAttack(actor,target,rng,interceptors);
+):{success:boolean;damage:number} {
+  if(!action)return {success:false,damage:0};
+  if(action.type==='heal'){
+    actor.hp=Math.min(actor.maxHp,actor.hp+action.amount);
+    return {success:true,damage:0};
+  }
+  if(action.type==='stun'){
+    target.stunned=true;
+    return {success:true,damage:0};
+  }
+  if(action.type==='attack'){
+    const result=resolveAttack(actor,target,rng,interceptors);
+    return {success:result.hit,damage:result.damage};
+  }
+  return {success:true,damage:0};
 }
 
 function endRound(combatant:CombatantState):void{
@@ -120,8 +130,13 @@ export function resolveRound(
     if(defeated(state.player)||defeated(state.enemy))break;
     if(!action)continue;
     if(phase.endsWith('main')&&actor.stunned)continue;
-    applyAction(actor,target,action,rng);
-    log.push({phase,action:action.type});
+    const result=applyAction(actor,target,action,rng);
+    log.push({
+      phase,
+      action:action.type,
+      success:result.success,
+      damage:result.damage
+    });
   }
 
   if(!defeated(state.player)&&!defeated(state.enemy)){
@@ -144,8 +159,13 @@ export function resolveRound(
   if(!defeated(state.player)&&!defeated(state.enemy)){
     const action=selections.enemy.main;
     if(action&&!state.enemy.stunned){
-      applyAction(state.enemy,state.player,action,rng,state.summons);
-      log.push({phase:'enemy-main',action:action.type});
+      const result=applyAction(state.enemy,state.player,action,rng,state.summons);
+      log.push({
+        phase:'enemy-main',
+        action:action.type,
+        success:result.success,
+        damage:result.damage
+      });
     }
   }
 

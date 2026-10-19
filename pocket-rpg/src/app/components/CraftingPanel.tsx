@@ -26,10 +26,10 @@ export function CraftingPanel(){
 
   return <section>
     <h2>Мастерские</h2>
-    <p>Ремесло: {state.crafting.skills.crafting.level} · Алхимия: {state.crafting.skills.alchemy.level}</p>
+    <p>Ремесло: {state.skillProgression.crafting.level} · Алхимия: {state.skillProgression.alchemy.level}</p>
     <p>Крафт мгновенный и без риска провала. По умолчанию используются материалы низшего доступного класса.</p>
     {recipes.map(recipe=>{
-      const skill=state.crafting.skills[recipe.skillId];
+      const skill=state.skillProgression[recipe.skillId];
       const unlocked=state.crafting.knownRecipeIds.includes(recipe.id)&&skill.level>=recipe.requiredSkill;
       const max=maxCraftableCount(state.inventory,recipe,itemDefs,'lowest',99);
       const ingredients=recipe.ingredients.map(ingredient=>

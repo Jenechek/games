@@ -137,6 +137,18 @@ function applyAction(
       };
     }
 
+    if(action.effect.kind==='damage'){
+      // Spell damage is separate from physical hit, block, parry and armor.
+      const amount=action.effect.amount;
+      if(!Number.isFinite(amount)||amount<=0||target.hp<=0){
+        return {success:false,damage:0,magicSkillPath:action.skillPath,magicEffectApplied:false};
+      }
+      const damage=Math.min(target.hp,Math.max(1,Math.round(amount)));
+      actor.mana=Math.max(0,actor.mana-manaCost);
+      target.hp=Math.max(0,target.hp-damage);
+      return {success:true,damage,magicSkillPath:action.skillPath,magicEffectApplied:true};
+    }
+
     const buff=action.effect;
     const magnitude=Math.max(0,buff.magnitude);
     if(magnitude<=0){

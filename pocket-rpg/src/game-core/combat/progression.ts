@@ -9,6 +9,7 @@ import type {
   PersistedSkillId,
   SkillProgressionState
 } from '../progression/skill-progress.js';
+import type { CombatLogEntry } from './types.js';
 
 export const COMBAT_DOMAIN_XP_WEIGHTS={
   weapon:1,
@@ -199,4 +200,23 @@ export function applyMagicEffectSkill(
 ):number{
   return Math.max(0,baseMagnitude)
     *magicEffectMultiplier(progression,skillPath);
+}
+
+
+export function applyLoggedMagicProgression(
+  progression:SkillProgressionState,
+  entry:Pick<
+    CombatLogEntry,
+    'magicEffectApplied'|'magicSkillPath'|'success'
+  >
+):SkillProgressionState{
+  if(
+    entry.magicEffectApplied!==true
+    ||(entry.magicSkillPath?.length??0)===0
+  )return progression;
+  return applyMagicActionProgression(
+    progression,
+    entry.magicSkillPath,
+    entry.success===true
+  );
 }

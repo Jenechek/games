@@ -19,7 +19,9 @@ export const ARCANE_WARD_SKILL_PATH=[
   'arcane-ward'
 ] as const;
 
-export type MagicSpellId='arcane-focus'|'arcane-mend'|'arcane-ward';
+export const ARCANE_BOLT_SKILL_PATH=['magic','arcane','concentration'] as const;
+
+export type MagicSpellId='arcane-focus'|'arcane-mend'|'arcane-ward'|'arcane-bolt';
 
 export type MagicSpellEffect =
   | {
@@ -31,13 +33,14 @@ export type MagicSpellEffect =
   | {
       kind:'heal';
       baseAmount:number;
-    };
+    }
+  | {kind:'damage';baseAmount:number;};
 
 export interface MagicSpellDefinition {
   id:MagicSpellId;
   label:string;
   manaCost:number;
-  requiredMagicLevel:0|10|20;
+  requiredMagicLevel:0|10|20|35;
   skillPath:readonly string[];
   effect:MagicSpellEffect;
 }
@@ -67,6 +70,10 @@ export const magicSpells:Record<MagicSpellId,MagicSpellDefinition>={
       baseAmount:25
     }
   },
+  'arcane-bolt':{
+    id:'arcane-bolt',label:'Арканный импульс',manaCost:25,requiredMagicLevel:35,
+    skillPath:ARCANE_BOLT_SKILL_PATH,effect:{kind:'damage',baseAmount:18}
+  },
   'arcane-ward':{
     id:'arcane-ward',
     label:'Магический барьер',
@@ -85,6 +92,7 @@ export const magicSpells:Record<MagicSpellId,MagicSpellDefinition>={
 export const arcaneFocusSpell=magicSpells['arcane-focus'];
 export const arcaneMendSpell=magicSpells['arcane-mend'];
 export const arcaneWardSpell=magicSpells['arcane-ward'];
+export const arcaneBoltSpell=magicSpells['arcane-bolt'];
 
 export function isMagicSpellUnlocked(
   spell:MagicSpellDefinition,
@@ -137,5 +145,6 @@ export function chooseMageAutoSpellId(
     &&canCastMagicSpell(magicSpells['arcane-focus'],context)
   )return 'arcane-focus';
 
+  if(canCastMagicSpell(magicSpells['arcane-bolt'],context))return 'arcane-bolt';
   return null;
 }

@@ -295,3 +295,22 @@ export function validateEquipmentLoadout(
   }
   return true;
 }
+
+
+export function equipmentStatValues(
+  loadout:EquipmentLoadoutState,
+  inventory:InventoryState,
+  stat:string
+):number[]{
+  const values:number[]=[];
+  for(const slot of EQUIPMENT_SLOTS){
+    const instance=equippedInstance(loadout,inventory,slot);
+    if(!instance)continue;
+    const base=instance.stats[stat];
+    if(typeof base==='number')values.push(base);
+    for(const property of instance.properties){
+      if(property.stat===stat)values.push(property.value);
+    }
+  }
+  return values;
+}

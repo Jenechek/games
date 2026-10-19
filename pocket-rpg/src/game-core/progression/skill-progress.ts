@@ -67,7 +67,7 @@ export function synchronizeSkillMirrors<T extends {
     },
     economy:{...state.economy,trading:{...progression.trading}},
     diplomacy:{...state.diplomacy,skill:{...progression.diplomacy}}
-  };
+  } as T;
 }
 
 export function skillStatesEqual(a:SkillState,b:SkillState):boolean{

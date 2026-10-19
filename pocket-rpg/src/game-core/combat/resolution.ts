@@ -57,18 +57,19 @@ function resolveAttack(
 
   let damage=attacker.damage*(1+effectMagnitude(attacker,'might'));
   if(rng.chance(.1))damage*=1.5;
-  const mitigation=physicalMitigationAfterPenetration(target.damageMitigation??0,0);
-  damage*=1-mitigation;
-  const rounded=Math.max(1,Math.round(damage));
 
   if(interceptors?.length){
     const interceptor=chooseInterceptor(interceptors,rng);
     if(interceptor){
-      applySummonDamage(interceptor,rounded);
-      return {hit:true,interceptorId:interceptor.instanceId,damage:rounded};
+      const intercepted=Math.max(1,Math.round(damage));
+      applySummonDamage(interceptor,intercepted);
+      return {hit:true,interceptorId:interceptor.instanceId,damage:intercepted};
     }
   }
 
+  const mitigation=physicalMitigationAfterPenetration(target.damageMitigation??0,0);
+  damage*=1-mitigation;
+  const rounded=Math.max(1,Math.round(damage));
   target.hp=Math.max(0,target.hp-rounded);
   return {hit:true,damage:rounded};
 }

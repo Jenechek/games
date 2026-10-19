@@ -4,6 +4,8 @@ import {itemDefs} from '../../content/items';
 import {normalizedStackClass} from '../../game-core/items/inventory';
 import {summonDefinitions} from '../../content/summons';
 import {
+  canCastMagicSpell,
+  chooseMageAutoSpellId,
   isMagicSpellUnlocked,
   magicSpells,
   type MagicSpellId
@@ -27,30 +29,20 @@ export function CombatPanel(){
   const focus=player.effects?.find(effect=>effect.id==='focus');
   const ward=player.effects?.find(effect=>effect.id==='ward');
 
-  const canCast=(spellId:MagicSpellId)=>{
-    const spell=magicSpells[spellId];
-    if(!isMage||!isMagicSpellUnlocked(spell,magicLevel))return false;
-    if(player.mana<spell.manaCost)return false;
-    if(spell.effect.kind==='heal'&&player.hp>=player.maxHp)return false;
-    return true;
+  const availabilityContext={
+    magicLevel,
+    mana:player.mana,
+    hp:player.hp,
+    maxHp:player.maxHp
   };
+  const canCast=(spellId:MagicSpellId)=>
+    isMage&&canCastMagicSpell(magicSpells[spellId],availabilityContext);
 
-  let autoSpellId:MagicSpellId|null=null;
-  const hpRatio=player.hp/player.maxHp;
-  if(hpRatio<=0.4&&canCast('arcane-mend')){
-    autoSpellId='arcane-mend';
-  }else if(
-    hpRatio<=0.75
-    &&(!ward||ward.roundsRemaining<=1)
-    &&canCast('arcane-ward')
-  ){
-    autoSpellId='arcane-ward';
-  }else if(
-    (!focus||focus.roundsRemaining<=1)
-    &&canCast('arcane-focus')
-  ){
-    autoSpellId='arcane-focus';
-  }
+  const autoSpellId=isMage?chooseMageAutoSpellId({
+    ...availabilityContext,
+    focusRoundsRemaining:focus?.roundsRemaining,
+    wardRoundsRemaining:ward?.roundsRemaining
+  }):null;
 
   return <section>
     <h2>Бой — раунд {state.combat.round}</h2>

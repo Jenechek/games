@@ -284,8 +284,9 @@ test('authored Arcane Focus content declares the expected magic path and cost',(
     'magic','arcane','concentration','arcane-focus'
   ]);
   assert.equal(arcaneFocusSpell.manaCost,20);
-  assert.equal(arcaneFocusSpell.baseMagnitude,0.08);
-  assert.equal(arcaneFocusSpell.durationRounds,3);
+  assert.equal(arcaneFocusSpell.effect.kind,'buff');
+  assert.equal(arcaneFocusSpell.effect.baseMagnitude,0.08);
+  assert.equal(arcaneFocusSpell.effect.durationRounds,3);
   assert.deepEqual(arcaneFocusSpell.skillPath,ARCANE_FOCUS_SKILL_PATH);
 });
 

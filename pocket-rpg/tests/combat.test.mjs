@@ -343,3 +343,23 @@ test('ward uses diminishing stacking with existing physical mitigation',()=>{
   );
   assert.equal(result.state.player.hp,93);
 });
+
+test('redundant weaker magic buff does not spend mana or grant magic XP',()=>{
+  const state=baseCombat();
+  state.player.effects=[{id:'ward',magnitude:0.20,roundsRemaining:4}];
+  const result=resolveRound(
+    state,
+    {player:{main:{
+      type:'magic',manaCost:30,
+      skillPath:['magic','protection','warding','arcane-ward'],
+      effect:{kind:'buff',id:'ward',magnitude:0.10,rounds:3}
+    }},enemy:{main:{type:'wait'}}},
+    {chance:()=>true}
+  );
+  assert.equal(result.state.player.mana,65);
+  assert.equal(result.state.player.effects[0].magnitude,0.20);
+  assert.equal(result.state.player.effects[0].roundsRemaining,3);
+  const entry=result.log.find(x=>x.phase==='player-main');
+  assert.equal(entry?.success,false);
+  assert.equal(entry?.magicEffectApplied,false);
+});

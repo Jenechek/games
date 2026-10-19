@@ -274,14 +274,22 @@ function applyWeaponCombatProgression(
   const attack=log.find(entry=>
     entry.phase==='player-main'&&entry.action==='attack'
   );
-  if(!attack)return state;
+  const skillPath=equippedWeaponSkillPath(state);
+  if(!attack||skillPath.length===0)return state;
 
-  const beforeMultiplier=shortSwordDamageMultiplier(state.skillProgression);
-  const skillProgression=applyShortSwordAttackProgression(
+  const beforeMultiplier=weaponDamageMultiplier(
     state.skillProgression,
+    skillPath
+  );
+  const skillProgression=applyWeaponAttackProgression(
+    state.skillProgression,
+    skillPath,
     attack.success===true
   );
-  const afterMultiplier=shortSwordDamageMultiplier(skillProgression);
+  const afterMultiplier=weaponDamageMultiplier(
+    skillProgression,
+    skillPath
+  );
 
   return {
     ...state,
@@ -311,19 +319,25 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
     playerClasses,
     summonDefinitions
   );
+  const stats=loadoutStats(state);
+  const weaponSkillPath=equippedWeaponSkillPath(state);
+  const hasShield=(stats.blockChance??0)>0;
   return {
     round:1,
     player:{
       id:'player',hp:playerMaxHp,maxHp:playerMaxHp,
       mana:100,maxMana:100,stamina:100,maxStamina:100,
-      stunned:false,shieldBlock:0,
-      parry:.1*penalties.blockParryMultiplier,
-      evasion:.08,
-      accuracy:Math.max(0,.85-penalties.accuracyPenalty),
-      damage:18
+      stunned:false,
+      shieldBlock:stats.blockChance??0,
+      hasShield,
+      parry:(.1+(stats.parry??0))*penalties.blockParryMultiplier,
+      evasion:.08+(stats.evasion??0),
+      accuracy:Math.max(0,.85+(stats.accuracy??0)-penalties.accuracyPenalty),
+      damage:(18+(stats.damage??0))
         *penalties.physicalAttackMultiplier
         *(classDef?.personalDamageMultiplier??1)
-        *shortSwordDamageMultiplier(state.skillProgression),
+        *weaponDamageMultiplier(state.skillProgression,weaponSkillPath),
+      damageMitigation:loadoutMitigation(state),
       style:'balanced',
       toxicity:0,
       effects:[]
@@ -331,7 +345,7 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
     enemy:{
       id:e.id,hp:scaled.maxHp,maxHp:scaled.maxHp,
       mana:50,maxMana:50,stamina:100,maxStamina:100,
-      stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,style:'balanced',
+      stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,damageMitigation:0,style:'balanced',
       toxicity:0,effects:[]
     },
     summons:prepareSummonsForCombat(state.summons,effectiveSummons,now)

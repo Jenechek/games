@@ -1,3 +1,4 @@
+import type { SummonCombatState } from '../summons/types.js';
 export type CombatStyle='balanced'|'aggressive'|'defensive'|'evasive';
 export type CombatAction = {type:'attack'} | {type:'heal'; amount:number} | {type:'stun'} | {type:'wait'};
 
@@ -27,7 +28,7 @@ export interface CombatantState {
   effects?:CombatEffectState[];
 }
 
-export interface CombatState { player:CombatantState; enemy:CombatantState; round:number; }
+export interface CombatState { player:CombatantState; enemy:CombatantState; round:number; summons?:SummonCombatState[]; }
 export interface ActionSelection { main?:CombatAction; additional?:CombatAction; style?:CombatStyle; }
 export interface RoundSelections { player:ActionSelection; enemy:ActionSelection; }
-export interface CombatLogEntry { phase:'player-additional'|'enemy-additional'|'player-main'|'enemy-main'; action:string; }
+export interface CombatLogEntry { phase:'player-additional'|'enemy-additional'|'player-main'|'summon-main'|'enemy-main'; action:string; actorId?:string; }

@@ -87,6 +87,12 @@ import {
   combatCharacterXp,
   type CharacterXpSource
 } from '../game-core/progression/character';
+import {
+  prepareSummonsForCombat,
+  reconstructSummonRecovery,
+  syncSummonsFromCombat
+} from '../game-core/summons/summons';
+import { summonDefinitions } from '../content/summons';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -180,7 +186,7 @@ function awardCharacterXp(
   };
 }
 
-function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatState {
+function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Date.now()):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
   const playerMaxHp=Math.max(1,Math.round(100*penalties.maxHpMultiplier));
@@ -206,7 +212,8 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false):CombatS
       mana:50,maxMana:50,stamina:100,maxStamina:100,
       stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,style:'balanced',
       toxicity:0,effects:[]
-    }
+    },
+    summons:prepareSummonsForCombat(state.summons,summonDefinitions,now)
   };
 }
 
@@ -236,6 +243,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           economy:restored.economy,
           diplomacy:restored.diplomacy,
           university:restored.university,
+          summons:restored.summons,
           farmingWork:null,
           gatheringSession:null
         }));
@@ -256,16 +264,20 @@ export function GameProvider({children}:{children:React.ReactNode}){
         crafting:state.crafting,
         economy:state.economy,
         diplomacy:state.diplomacy,
-        university:state.university
+        university:state.university,
+        summons:state.summons
       }).catch(()=>{});
     },300);
     return()=>clearTimeout(id);
-  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university]);
+  },[hydrated,state.level,state.xp,state.gold,state.attributes,state.attributeXp,state.world,state.inventory,state.injuries,state.farming,state.gathering,state.crafting,state.economy,state.diplomacy,state.university,state.summons]);
 
   useEffect(()=>{
     const id=setInterval(()=>setState(s=>{
       const now=Date.now();
       let n:RuntimeState={...s,...tickGame(s,now)};
+      if(!n.combat){
+        n={...n,summons:reconstructSummonRecovery(n.summons,summonDefinitions,now)};
+      }
 
       while(n.farmingWork && now>=n.farmingWork.nextAt){
         const workBefore=n.farmingWork;
@@ -398,17 +410,26 @@ export function GameProvider({children}:{children:React.ReactNode}){
       const pc=chooseAutoAction(s.combat,'player',rng.current);pc.style=s.style;
       const ec=chooseAutoAction(s.combat,'enemy',rng.current);
       const r=resolveRound(s.combat,{player:pc,enemy:ec},rng.current);
-      if(r.state.player.hp<=0)return applyPlayerDefeat(s);
+      const afterRound:RuntimeState={
+        ...s,
+        combat:r.state,
+        summons:syncSummonsFromCombat(
+          s.summons,
+          r.state.summons??[],
+          Date.now()
+        )
+      };
+      if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
       if(r.state.enemy.hp<=0){
         const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
         const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
         return awardCharacterXp(
-          {...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+          {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
           combatCharacterXp(enemyLevel),
           'combat'
         );
       }
-      return{...s,combat:r.state,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
+      return{...afterRound,combatItemUsedRound:null,log:[...s.log,`Раунд ${s.combat.round} завершён.`]};
     }),5000);
     return()=>clearInterval(id);
   },[state.combatMode,state.paused,state.combat,state.style]);
@@ -423,9 +444,21 @@ export function GameProvider({children}:{children:React.ReactNode}){
     },
     startEncounter(){
       setState(s=>{
-        if(!canPerformAction(s.injuries,'combat',Date.now()))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
+        const now=Date.now();
+        if(!canPerformAction(s.injuries,'combat',now))return{...s,log:[...s.log,'Сейчас нельзя вступать в бой: персонаж восстанавливается.']};
         const id=locations[s.world.locationId]?.enemies[0];
-        return id?{...s,combat:enemyCombat(id,s),combatItemUsedRound:null,fishing:null,farmingWork:null,gatheringSession:null,log:[...s.log,`Бой: ${enemies[id].label}`]}:s;
+        if(!id)return s;
+        const summons=reconstructSummonRecovery(s.summons,summonDefinitions,now);
+        const prepared={...s,summons};
+        return{
+          ...prepared,
+          combat:enemyCombat(id,prepared,false,now),
+          combatItemUsedRound:null,
+          fishing:null,
+          farmingWork:null,
+          gatheringSession:null,
+          log:[...s.log,`Бой: ${enemies[id].label}`]
+        };
       });
     },
     manualAttack(){
@@ -433,17 +466,26 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!s.combat)return s;
         const ec=chooseAutoAction(s.combat,'enemy',rng.current);
         const r=resolveRound(s.combat,{player:{main:{type:'attack'},style:s.style},enemy:ec},rng.current);
-        if(r.state.player.hp<=0)return applyPlayerDefeat(s);
+        const afterRound:RuntimeState={
+          ...s,
+          combat:r.state,
+          summons:syncSummonsFromCombat(
+            s.summons,
+            r.state.summons??[],
+            Date.now()
+          )
+        };
+        if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
         if(r.state.enemy.hp<=0){
           const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
           const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
           return awardCharacterXp(
-            {...s,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+            {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
             combatCharacterXp(enemyLevel),
             'combat'
           );
         }
-        return{...s,combat:r.state,combatItemUsedRound:null};
+        return{...afterRound,combatItemUsedRound:null};
       });
     },
     togglePause(){setState(s=>({...s,paused:!s.paused}));},

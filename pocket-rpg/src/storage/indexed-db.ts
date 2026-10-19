@@ -7,7 +7,8 @@ import type {
   LegacyGameStateV5,
   LegacyGameStateV6,
   LegacyGameStateV7,
-  LegacyGameStateV8
+  LegacyGameStateV8,
+  LegacyGameStateV9
 } from '../game-core/game-state.js';
 import { cleanInjuryState } from '../game-core/injuries/injuries.js';
 import { createDefaultFarmingState } from '../game-core/peaceful/farming/farming.js';
@@ -20,12 +21,14 @@ import {
   createDefaultUniversityState
 } from '../game-core/university/retraining.js';
 import { emptyAttributeProfile } from '../game-core/progression/character.js';
+import { createDefaultSummonRoster } from '../game-core/summons/summons.js';
 import { starterRecipeIds } from '../content/crafting.js';
-import type { SaveEnvelopeV9 } from './schema.js';
+import type { SaveEnvelopeV10 } from './schema.js';
 import { migrateSave,upgradeLegacyInventory } from './migrations.js';
 
 type SaveInput=
   |GameState
+  |LegacyGameStateV9
   |LegacyGameStateV8
   |LegacyGameStateV7
   |LegacyGameStateV6
@@ -54,6 +57,25 @@ function persistentCharacter(
 }
 
 function normalizeState(state:SaveInput):GameState{
+  if('summons' in state){
+    return {
+      character:persistentCharacter(state.character),
+      world:state.world,
+      inventory:{
+        stacks:state.inventory.stacks.map(stack=>({...stack})),
+        equipment:[...(state.inventory.equipment??[])]
+      },
+      injuries:state.injuries,
+      farming:state.farming,
+      gathering:state.gathering,
+      crafting:state.crafting,
+      economy:state.economy,
+      diplomacy:state.diplomacy,
+      university:state.university,
+      summons:state.summons
+    };
+  }
+
   if('university' in state){
     return {
       character:persistentCharacter(state.character),
@@ -68,7 +90,8 @@ function normalizeState(state:SaveInput):GameState{
       crafting:state.crafting,
       economy:state.economy,
       diplomacy:state.diplomacy,
-      university:state.university
+      university:state.university,
+      summons:createDefaultSummonRoster()
     };
   }
 
@@ -86,7 +109,8 @@ function normalizeState(state:SaveInput):GameState{
       crafting:state.crafting,
       economy:state.economy,
       diplomacy:state.diplomacy,
-      university:createDefaultUniversityState()
+      university:createDefaultUniversityState(),
+      summons:createDefaultSummonRoster()
     };
   }
 
@@ -104,7 +128,8 @@ function normalizeState(state:SaveInput):GameState{
       crafting:state.crafting,
       economy:state.economy,
       diplomacy:createDefaultDiplomacyState(),
-      university:createDefaultUniversityState()
+      university:createDefaultUniversityState(),
+      summons:createDefaultSummonRoster()
     };
   }
 
@@ -122,7 +147,8 @@ function normalizeState(state:SaveInput):GameState{
       crafting:state.crafting,
       economy:createDefaultEconomyState(),
       diplomacy:createDefaultDiplomacyState(),
-      university:createDefaultUniversityState()
+      university:createDefaultUniversityState(),
+      summons:createDefaultSummonRoster()
     };
   }
 
@@ -140,13 +166,14 @@ function normalizeState(state:SaveInput):GameState{
     },
     economy:createDefaultEconomyState(),
     diplomacy:createDefaultDiplomacyState(),
-    university:createDefaultUniversityState()
+    university:createDefaultUniversityState(),
+    summons:createDefaultSummonRoster()
   };
 }
 
 export function encodeSave(state:SaveInput,savedAt:number):string{
-  const envelope:SaveEnvelopeV9={
-    schemaVersion:9,
+  const envelope:SaveEnvelopeV10={
+    schemaVersion:10,
     savedAt,
     state:normalizeState(state)
   };

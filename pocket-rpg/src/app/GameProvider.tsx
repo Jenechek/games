@@ -23,7 +23,7 @@ import { locations } from '../content/locations';
 import { enemies } from '../content/enemies';
 import { resolveRound } from '../game-core/combat/resolution';
 import { chooseAutoAction } from '../game-core/combat/auto-ai';
-import type { CombatState, CombatStyle } from '../game-core/combat/types';
+import type { CombatLogEntry, CombatState, CombatStyle } from '../game-core/combat/types';
 import { rollLoot, type LootResult } from '../game-core/loot/loot';
 import { startFishing, advanceFishing, stopFishing, type FishingState } from '../game-core/peaceful/fishing';
 import {
@@ -104,6 +104,10 @@ import {
 import type { PlayerClassId } from '../game-core/classes/types';
 import type { SkillState } from '../game-core/progression/skills';
 import { playerClasses } from '../content/classes';
+import {
+  applyShortSwordAttackProgression,
+  shortSwordDamageMultiplier
+} from '../game-core/combat/progression';
 
 interface RuntimeState extends UiGameState {
   inventory:InventoryState;
@@ -213,6 +217,37 @@ function awardCombatProgression(
   );
 }
 
+function applyWeaponCombatProgression(
+  state:RuntimeState,
+  log:CombatLogEntry[]
+):RuntimeState{
+  const attack=log.find(entry=>
+    entry.phase==='player-main'&&entry.action==='attack'
+  );
+  if(!attack)return state;
+
+  const beforeMultiplier=shortSwordDamageMultiplier(state.skillProgression);
+  const skillProgression=applyShortSwordAttackProgression(
+    state.skillProgression,
+    attack.success===true
+  );
+  const afterMultiplier=shortSwordDamageMultiplier(skillProgression);
+
+  return {
+    ...state,
+    skillProgression,
+    combat:state.combat
+      ?{
+          ...state.combat,
+          player:{
+            ...state.combat.player,
+            damage:state.combat.player.damage*(afterMultiplier/beforeMultiplier)
+          }
+        }
+      :state.combat
+  };
+}
+
 function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Date.now()):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
@@ -235,7 +270,10 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
       parry:.1*penalties.blockParryMultiplier,
       evasion:.08,
       accuracy:Math.max(0,.85-penalties.accuracyPenalty),
-      damage:18*penalties.physicalAttackMultiplier*(classDef?.personalDamageMultiplier??1),
+      damage:18
+        *penalties.physicalAttackMultiplier
+        *(classDef?.personalDamageMultiplier??1)
+        *shortSwordDamageMultiplier(state.skillProgression),
       style:'balanced',
       toxicity:0,
       effects:[]
@@ -466,7 +504,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
       const pc=chooseAutoAction(s.combat,'player',rng.current);pc.style=s.style;
       const ec=chooseAutoAction(s.combat,'enemy',rng.current);
       const r=resolveRound(s.combat,{player:pc,enemy:ec},rng.current);
-      const afterRound:RuntimeState={
+      let afterRound:RuntimeState={
         ...s,
         combat:r.state,
         summons:syncSummonsFromCombat(
@@ -475,6 +513,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
           Date.now()
         )
       };
+      afterRound=applyWeaponCombatProgression(afterRound,r.log);
       if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
       if(r.state.enemy.hp<=0){
         const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
@@ -527,7 +566,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!s.combat)return s;
         const ec=chooseAutoAction(s.combat,'enemy',rng.current);
         const r=resolveRound(s.combat,{player:{main:{type:'attack'},style:s.style},enemy:ec},rng.current);
-        const afterRound:RuntimeState={
+        let afterRound:RuntimeState={
           ...s,
           combat:r.state,
           summons:syncSummonsFromCombat(
@@ -536,6 +575,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
             Date.now()
           )
         };
+        afterRound=applyWeaponCombatProgression(afterRound,r.log);
         if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
         if(r.state.enemy.hp<=0){
           const enemyLevel=enemies[s.combat.enemy.id]?.level??1;

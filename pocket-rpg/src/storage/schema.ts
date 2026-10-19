@@ -9,7 +9,8 @@ import type {
   LegacyGameStateV7,
   LegacyGameStateV8,
   LegacyGameStateV9,
-  LegacyGameStateV10
+  LegacyGameStateV10,
+  LegacyGameStateV11
 } from '../game-core/game-state.js';
 
 export interface SaveEnvelopeV1 {schemaVersion:1;savedAt:number;state:LegacyGameStateV1;}
@@ -22,8 +23,9 @@ export interface SaveEnvelopeV7 {schemaVersion:7;savedAt:number;state:LegacyGame
 export interface SaveEnvelopeV8 {schemaVersion:8;savedAt:number;state:LegacyGameStateV8;}
 export interface SaveEnvelopeV9 {schemaVersion:9;savedAt:number;state:LegacyGameStateV9;}
 export interface SaveEnvelopeV10 {schemaVersion:10;savedAt:number;state:LegacyGameStateV10;}
-export interface SaveEnvelopeV11 {schemaVersion:11;savedAt:number;state:GameState;}
+export interface SaveEnvelopeV11 {schemaVersion:11;savedAt:number;state:LegacyGameStateV11;}
+export interface SaveEnvelopeV12 {schemaVersion:12;savedAt:number;state:GameState;}
 
 export type SaveEnvelope=
   |SaveEnvelopeV1|SaveEnvelopeV2|SaveEnvelopeV3|SaveEnvelopeV4
-  |SaveEnvelopeV5|SaveEnvelopeV6|SaveEnvelopeV7|SaveEnvelopeV8|SaveEnvelopeV9|SaveEnvelopeV10|SaveEnvelopeV11;
+  |SaveEnvelopeV5|SaveEnvelopeV6|SaveEnvelopeV7|SaveEnvelopeV8|SaveEnvelopeV9|SaveEnvelopeV10|SaveEnvelopeV11|SaveEnvelopeV12;

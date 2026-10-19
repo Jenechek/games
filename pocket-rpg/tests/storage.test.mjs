@@ -177,6 +177,18 @@ test('current encoded saves use schema v14',()=>{
   assert.deepEqual(envelope.state.equipmentLoadout,createDefaultEquipmentLoadout());
 });
 
+test('save normalization prunes a loadout that no longer meets requirements',()=>{
+  const state=fullState();
+  state.character.attributes.strength=12;
+  addSword(state);
+  state.equipmentLoadout.mainHand='eq-1';
+  state.character.attributes.strength=11;
+
+  const envelope=JSON.parse(encodeSave(state,999));
+  assert.equal(envelope.schemaVersion,14);
+  assert.equal(envelope.state.equipmentLoadout.mainHand,null);
+});
+
 test('v14 rejects loadout references that are missing or in the wrong slot',()=>{
   const state=fullState();
   state.character.attributes.strength=12;

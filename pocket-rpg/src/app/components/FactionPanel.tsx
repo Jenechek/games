@@ -58,7 +58,7 @@ export function FactionPanel(){
     <p>{faction.description}</p>
     <p>
       Отношения: {relation.toFixed(0)} · {rankLabels[rank]} ·
-      Дипломатия: {state.diplomacy.skill.level}
+      Дипломатия: {state.skillProgression.diplomacy.level}
     </p>
 
     <h3>Аудиенция</h3>
@@ -79,7 +79,7 @@ export function FactionPanel(){
       Повтор: раз в {MEDIATION_COOLDOWN_MS/(60*60*1000)} ч.
     </p>
     <button
-      disabled={locked||state.diplomacy.skill.level<20||now<mediationUntil}
+      disabled={locked||state.skillProgression.diplomacy.level<20||now<mediationUntil}
       onClick={commands.factionMediation}
     >
       Провести медиацию — {remainingLabel(mediationUntil,now)}

@@ -92,3 +92,50 @@ export function isMagicSpellUnlocked(
 ):boolean{
   return magicLevel>=spell.requiredMagicLevel;
 }
+
+
+export interface MagicSpellAvailabilityContext {
+  magicLevel:number;
+  mana:number;
+  hp:number;
+  maxHp:number;
+}
+
+export function canCastMagicSpell(
+  spell:MagicSpellDefinition,
+  context:MagicSpellAvailabilityContext
+):boolean{
+  if(!isMagicSpellUnlocked(spell,context.magicLevel))return false;
+  if(context.mana<spell.manaCost)return false;
+  if(spell.effect.kind==='heal'&&context.hp>=context.maxHp)return false;
+  return true;
+}
+
+export interface MageAutoSpellContext extends MagicSpellAvailabilityContext {
+  focusRoundsRemaining?:number;
+  wardRoundsRemaining?:number;
+}
+
+export function chooseMageAutoSpellId(
+  context:MageAutoSpellContext
+):MagicSpellId|null{
+  const hpRatio=context.maxHp>0?context.hp/context.maxHp:1;
+
+  if(
+    hpRatio<=0.4
+    &&canCastMagicSpell(magicSpells['arcane-mend'],context)
+  )return 'arcane-mend';
+
+  if(
+    hpRatio<=0.75
+    &&(context.wardRoundsRemaining??0)<=1
+    &&canCastMagicSpell(magicSpells['arcane-ward'],context)
+  )return 'arcane-ward';
+
+  if(
+    (context.focusRoundsRemaining??0)<=1
+    &&canCastMagicSpell(magicSpells['arcane-focus'],context)
+  )return 'arcane-focus';
+
+  return null;
+}

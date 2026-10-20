@@ -21,7 +21,7 @@ export const ARCANE_WARD_SKILL_PATH=[
 
 export const ARCANE_BOLT_SKILL_PATH=['magic','arcane','concentration'] as const;
 
-export type MagicSpellId='arcane-focus'|'arcane-mend'|'arcane-ward'|'arcane-bolt'|'fire-spark'|'frost-shard';
+export type MagicSpellId='arcane-dart'|'arcane-focus'|'arcane-mend'|'arcane-ward'|'arcane-bolt'|'fire-spark'|'frost-shard';
 
 export type MagicSpellEffect =
   | {
@@ -46,6 +46,8 @@ export interface MagicSpellDefinition {
 }
 
 export const magicSpells:Record<MagicSpellId,MagicSpellDefinition>={
+  'arcane-dart':{id:'arcane-dart',label:'Арканная стрела',manaCost:16,requiredMagicLevel:0,
+    skillPath:ARCANE_BOLT_SKILL_PATH,effect:{kind:'damage',baseAmount:11,damageType:'arcane'}},
   'arcane-focus':{
     id:'arcane-focus',
     label:'Магический фокус',
@@ -146,7 +148,7 @@ export function chooseMageAutoSpellId(
     ?Math.max(0,Math.min(.75,value??0)):0;
   const multiplier=Math.max(0,context.spellPowerMultiplier??1);
   const physical=Math.max(0,context.physicalDamage??0);
-  const spells=(['arcane-bolt','fire-spark','frost-shard'] as const)
+  const spells=(['arcane-dart','arcane-bolt','fire-spark','frost-shard'] as const)
     .filter(id=>canCastMagicSpell(magicSpells[id],context))
     .map(id=>{
       const spell=magicSpells[id];

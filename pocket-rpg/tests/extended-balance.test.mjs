@@ -313,3 +313,19 @@ test('100 paired battlemage fights by progression tier report signature contribu
     fullRounds:avg(full),noMagicRounds:avg(noMagic)}));
  }
 });
+
+test('early magic progression: 100 paired battles per caster at levels 0 10 20 35',()=>{
+ const seeds=Array.from({length:100},(_,i)=>i+4001),report=[];
+ for(const classId of ['mage','druid','battlemage','paladin'])for(const level of [0,10,20,35]){
+  const full=seeds.map(seed=>run(classId,'old-treant',level,seed));
+  const noMagic=seeds.map(seed=>run(classId,'old-treant',level,seed,{withMagic:false}));
+  const mean=results=>results.reduce((sum,b)=>sum+b.rounds,0)/results.length;
+  report.push({classId,level,battles:100,fullWins:full.filter(x=>x.won).length,
+    withoutMagicWins:noMagic.filter(x=>x.won).length,
+    fullRounds:mean(full),withoutMagicRounds:mean(noMagic),
+    fullUnresolved:full.filter(x=>!x.terminal).length});
+ }
+ assert.equal(report.length,16);
+ assert.ok(report.every(row=>row.fullRounds>=1&&row.fullRounds<=60));
+ console.log('EARLY_MAGIC_100_REPORT '+JSON.stringify(report));
+});

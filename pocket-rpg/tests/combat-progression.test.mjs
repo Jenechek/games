@@ -335,7 +335,7 @@ test('magic registry preserves established skill paths and adds typed damage spe
     'magic','protection','warding','arcane-ward'
   ]);
   assert.deepEqual(Object.keys(magicSpells),[
-    'arcane-focus','arcane-mend','arcane-bolt','fire-spark','frost-shard','arcane-ward'
+    'arcane-dart','arcane-focus','arcane-mend','arcane-bolt','fire-spark','frost-shard','arcane-ward'
   ]);
 });
 
@@ -404,7 +404,7 @@ test('spell availability enforces unlock mana and meaningful healing',()=>{
   assert.equal(canCastMagicSpell(arcaneMendSpell,{...base,hp:100}),false);
 });
 
-test('mage auto magic priority is heal then ward then focus',()=>{
+test('mage auto magic prioritizes healing then affordable offense',()=>{
   assert.equal(chooseMageAutoSpellId({
     magicLevel:20,mana:100,hp:35,maxHp:100,
     focusRoundsRemaining:0,wardRoundsRemaining:0
@@ -413,29 +413,29 @@ test('mage auto magic priority is heal then ward then focus',()=>{
   assert.equal(chooseMageAutoSpellId({
     magicLevel:20,mana:100,hp:60,maxHp:100,
     focusRoundsRemaining:0,wardRoundsRemaining:0
-  }),'arcane-ward');
+  }),'arcane-dart');
 
   assert.equal(chooseMageAutoSpellId({
     magicLevel:20,mana:100,hp:90,maxHp:100,
     focusRoundsRemaining:0,wardRoundsRemaining:0
-  }),'arcane-focus');
+  }),'arcane-dart');
 
   assert.equal(chooseMageAutoSpellId({
     magicLevel:20,mana:100,hp:90,maxHp:100,
     focusRoundsRemaining:3,wardRoundsRemaining:3
-  }),null);
+  }),'arcane-dart');
 });
 
 test('auto magic falls through locked or unaffordable higher priority spells',()=>{
   assert.equal(chooseMageAutoSpellId({
     magicLevel:9,mana:100,hp:35,maxHp:100,
     focusRoundsRemaining:0,wardRoundsRemaining:0
-  }),'arcane-focus');
+  }),'arcane-dart');
 
   assert.equal(chooseMageAutoSpellId({
     magicLevel:20,mana:20,hp:35,maxHp:100,
     focusRoundsRemaining:0,wardRoundsRemaining:0
-  }),'arcane-focus');
+  }),'arcane-dart');
 });
 
 test('arcane bolt requires magic 35 and 25 mana, while auto spell prioritizes healing',()=>{
@@ -449,7 +449,7 @@ test('arcane bolt requires magic 35 and 25 mana, while auto spell prioritizes he
   assert.equal(canCastMagicSpell(bolt,{magicLevel:35,mana:25,hp:100,maxHp:100}),true);
   assert.equal(chooseMageAutoSpellId({magicLevel:35,mana:100,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2}),'arcane-bolt');
   assert.equal(chooseMageAutoSpellId({magicLevel:35,mana:100,hp:30,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2}),'arcane-mend');
-  assert.equal(chooseMageAutoSpellId({magicLevel:35,mana:24,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2}),null);
+  assert.equal(chooseMageAutoSpellId({magicLevel:35,mana:24,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2}),'arcane-dart');
 });
 
 test('arcane bolt advances only its existing arcane skill ancestors',()=>{
@@ -467,7 +467,17 @@ test('auto mage chooses an efficient element and honors mana limit',()=>{
  const c={magicLevel:70,mana:100,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2};
  assert.equal(chooseMageAutoSpellId({...c,elementalResistances:{arcane:.75,fire:.75,frost:0}}),'frost-shard');
  assert.equal(chooseMageAutoSpellId({...c,elementalResistances:{arcane:0,fire:.75,frost:.75}}),'arcane-bolt');
- assert.equal(chooseMageAutoSpellId({...c,mana:24}),null);
+ assert.equal(chooseMageAutoSpellId({...c,mana:24}),'arcane-dart');
 });
 
 // Regression: spell selection and progression are verified above before promotion to main.
+
+test('starter arcane dart is available at level zero and respects low mana',()=>{
+ const dart=magicSpells['arcane-dart'];
+ assert.equal(dart.requiredMagicLevel,0);
+ assert.equal(dart.manaCost,16);
+ assert.equal(dart.effect.kind,'damage');
+ assert.equal(canCastMagicSpell(dart,{magicLevel:0,mana:16,hp:100,maxHp:100}),true);
+ assert.equal(canCastMagicSpell(dart,{magicLevel:0,mana:15,hp:100,maxHp:100}),false);
+ assert.equal(chooseMageAutoSpellId({magicLevel:0,mana:100,hp:100,maxHp:100,combatRole:'pure-caster'}),'arcane-dart');
+});

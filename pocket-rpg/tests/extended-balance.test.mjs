@@ -103,3 +103,28 @@ test('432 reproducible multi-level battles cover gear, caster mana and summon ar
   rows:rows.map(r=>({classId:r.classId,enemyId:r.enemyId,winRate:r.winRate,avgRounds:r.avgRounds}))
  }));
 });
+
+test('guardian adjustment preserves survival against treant at early milestone',()=>{
+ const seeds=[1,11,37,73];
+ const guardian=seeds.map(seed=>run('guardian','old-treant',10,seed));
+ const wins=guardian.filter(b=>b.won).length;
+ assert.ok(wins>=1,'guardian must keep at least baseline victories');
+ assert.ok(guardian.every(b=>b.terminal&&b.rounds<=60));
+ const average=guardian.reduce((n,b)=>n+b.rounds,0)/guardian.length;
+ assert.ok(average<=20,'guardian early combat became excessively slow');
+ console.log('GUARDIAN_BALANCE_CHECK '+JSON.stringify({wins,battles:seeds.length,avgRounds:average}));
+});
+test('compare class matchup efficiency without requiring equal win rates across difficulties',()=>{
+ const ids=Object.keys(playerClasses);
+ const report=[];
+ for(const id of ids){
+  const easy=[1,11,37,73].map(seed=>run(id,'young-wolf',35,seed));
+  const hard=[1,11,37,73].map(seed=>run(id,'old-treant',35,seed));
+  const avg=x=>x.reduce((sum,b)=>sum+b.rounds,0)/x.length;
+  const easyRounds=avg(easy),hardRounds=avg(hard);
+  assert.ok(easyRounds>0&&hardRounds>0&&easyRounds<=60&&hardRounds<=60);
+  report.push({classId:id,easyRounds,hardRounds,relativeDifficulty:hardRounds/easyRounds});
+ }
+ assert.equal(report.length,12);
+ console.log('CLASS_DIFFICULTY_COMPARISON '+JSON.stringify(report));
+});

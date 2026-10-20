@@ -396,3 +396,36 @@ test('insufficient mana prevents direct magic damage',()=>{
   assert.equal(result.state.enemy.hp,100);
   assert.equal(result.log.find(x=>x.phase==='player-main')?.magicEffectApplied,false);
 });
+
+test('magic resistance reduces only direct magical damage',()=>{
+  const state=baseCombat();state.enemy.magicResistance=.25;state.enemy.damageMitigation=.9;
+  const r=resolveRound(state,{player:{main:{type:'magic',manaCost:25,skillPath:['magic'],effect:{kind:'damage',amount:20}}},enemy:{main:{type:'wait'}}},{chance:()=>false});
+  assert.equal(r.state.enemy.hp,85);
+  assert.equal(r.log.find(x=>x.phase==='player-main')?.magicEffectApplied,true);
+  const physical=baseCombat();physical.enemy.magicResistance=.75;
+  const x=resolveRound(physical,{player:{main:{type:'attack'}},enemy:{main:{type:'wait'}}},{chance:p=>p!==.1});
+  assert.equal(x.state.enemy.hp,80);
+});
+
+test('magic resistance is capped at 75 percent and does not grant immunity',()=>{
+  for(const resistance of [.75,1,20]){
+    const state=baseCombat();state.enemy.magicResistance=resistance;
+    const r=resolveRound(state,{player:{main:{type:'magic',manaCost:25,skillPath:['magic'],effect:{kind:'damage',amount:20}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+    assert.equal(r.state.enemy.hp,95);
+    assert.equal(r.state.player.mana,40);
+  }
+});
+
+test('invalid resistance values default to zero and negative resistance cannot amplify damage',()=>{
+  for(const resistance of [-2,NaN,Infinity]){
+    const state=baseCombat();state.enemy.magicResistance=resistance;
+    const r=resolveRound(state,{player:{main:{type:'magic',manaCost:25,skillPath:['magic'],effect:{kind:'damage',amount:20}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+    assert.equal(r.state.enemy.hp,80);
+  }
+});
+
+test('magic resistance does not reduce magical self-healing',()=>{
+  const state=baseCombat();state.player.magicResistance=.75;state.player.hp=50;
+  const r=resolveRound(state,{player:{main:{type:'magic',manaCost:35,skillPath:['magic'],effect:{kind:'heal',amount:25}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+  assert.equal(r.state.player.hp,75);
+});

@@ -335,7 +335,7 @@ test('magic registry preserves established skill paths and adds typed damage spe
     'magic','protection','warding','arcane-ward'
   ]);
   assert.deepEqual(Object.keys(magicSpells),[
-    'arcane-focus','arcane-mend','arcane-bolt','fire-spark','frost-shard','arcane-ward'
+    'arcane-dart','arcane-focus','arcane-mend','arcane-bolt','fire-spark','frost-shard','arcane-ward'
   ]);
 });
 

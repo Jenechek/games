@@ -7,6 +7,7 @@ import {chooseAutoClassAbility} from '../dist/content/class-abilities.js';
 import {chooseMageAutoSpellId,magicSpells} from '../dist/content/magic.js';
 import {playerClasses} from '../dist/content/classes.js';
 import {enemies} from '../dist/content/enemies.js';
+import {itemDefs} from '../dist/content/items.js';
 import {summonDefinitions} from '../dist/content/summons.js';
 import {summarizeBalance} from '../dist/game-core/combat/balance-report.js';
 
@@ -29,13 +30,17 @@ function summon(id,classDef){
 function run(classId,enemyId,level,seed,configuration={}){
  const rng=new SeededRng(seed),cls=playerClasses[classId],enemy=enemies[enemyId];
  const hp=Math.round(100*(cls.hpMultiplier??1));
- const gear=configuration.withGear===false?1:level>=70?1.22:level>=35?1.10:1;
- const defense=configuration.withGear===false?0:level>=70?.12:level>=35?.06:0;
+ const equipped=configuration.withGear===false?[]:level>=70?['rare-short-sword','heavy-armor','wooden-shield']:level>=35?['iron-short-sword','light-armor','wooden-shield']:['iron-short-sword'];
+ const gearDamage=equipped.reduce((sum,id)=>sum+(itemDefs[id].stats?.damage??0),0);
+ const gearDefense=equipped.reduce((a,id)=>a*(1-(itemDefs[id].stats?.mitigation??0)),1);
+ const gearEvasion=equipped.reduce((sum,id)=>sum+(itemDefs[id].stats?.evasion??0),0);
+ const gearBlock=equipped.reduce((sum,id)=>sum+(itemDefs[id].stats?.blockChance??0),0);
  const maxMana=Math.round(100*(cls.manaMultiplier??1));
  let state={round:1,
-  player:{...unit('player',hp,18*cls.personalDamageMultiplier*gear,.85+(cls.accuracyBonus??0)),
-   mana:maxMana,maxMana,damageMitigation:1-(1-defense)*(1-(cls.mitigationBonus??0)),
-   evasion:Math.max(0,.08+(cls.evasionBonus??0))},
+  player:{...unit('player',hp,(18+gearDamage)*cls.personalDamageMultiplier,.85+(cls.accuracyBonus??0)),
+   mana:maxMana,maxMana,damageMitigation:1-gearDefense*(1-(cls.mitigationBonus??0)),
+   shieldBlock:gearBlock,hasShield:gearBlock>0,
+   evasion:Math.max(0,.08+gearEvasion+(cls.evasionBonus??0))},
   enemy:{...unit(enemy.id,enemy.maxHp,enemy.damage,.75),mana:50,maxMana:50,
    elementalResistances:{...enemy.elementalResistances}},
   summons:configuration.withSummons===false?[]:classId==='mage'?[summon('guardian-elemental',cls)]:
@@ -99,7 +104,7 @@ test('432 reproducible multi-level battles cover gear, caster mana and summon ar
  assert.equal(rows.length,108);
  for(const row of rows)assert.equal(row.battles,4);
  console.log('EXTENDED_CLASS_BALANCE_REPORT '+JSON.stringify({
-  levels,gearMultipliers:[1,1.10,1.22],matchups:rows.length,
+  levels,gearProfiles:['iron-short-sword','iron-short-sword/light-armor/wooden-shield','rare-short-sword/heavy-armor/wooden-shield'],matchups:rows.length,
   unresolved:samples.filter(sample=>!sample.terminal).map(sample=>({classId:sample.classId,enemyId:sample.enemyId,level:sample.level,seed:sample.seed})),
   rows:rows.map(r=>({classId:r.classId,enemyId:r.enemyId,winRate:r.winRate,avgRounds:r.avgRounds}))
  }));
@@ -165,4 +170,35 @@ test('class identity counterfactuals: 12 archetypes, three progression points, f
  const signatures=report.filter(x=>x.noSignature);
  assert.equal(signatures.length,15);
  console.log('CLASS_ROLE_ABLATION_REPORT '+JSON.stringify(report));
+});
+
+test('real equipment profiles use exact item stats rather than invented scaling',()=>{
+ const iron=itemDefs['iron-short-sword'],rare=itemDefs['rare-short-sword'];
+ const light=itemDefs['light-armor'],heavy=itemDefs['heavy-armor'],shield=itemDefs['wooden-shield'];
+ assert.equal(iron.stats.damage,10);assert.equal(rare.stats.damage,16);
+ assert.equal(light.stats.mitigation,.05);assert.equal(light.stats.evasion,.08);
+ assert.equal(heavy.stats.mitigation,.18);assert.equal(shield.stats.blockChance,.12);
+ assert.ok(Math.abs(1-(1-heavy.stats.mitigation)*(1-shield.stats.mitigation)-.2456)<1e-10);
+});
+test('signature loss is measurable across multiple archetypes with real equipment',()=>{
+ const configurations=[
+  ['mage',{withMagic:false,withSummons:false}],
+  ['tamer',{withSummons:false}],
+  ['druid',{withMagic:false}],
+  ['warrior',{withAbilities:false}],
+  ['guardian',{withAbilities:false}]
+ ];
+ const summary=[];
+ for(const [classId,disabled] of configurations){
+  const complete=[1,11,37,73].map(seed=>run(classId,'old-treant',35,seed));
+  const limited=[1,11,37,73].map(seed=>run(classId,'old-treant',35,seed,disabled));
+  assert.ok(complete.every(x=>x.rounds>=1&&x.rounds<=60));
+  assert.ok(limited.every(x=>x.rounds>=1&&x.rounds<=60));
+  summary.push({classId,
+   completeWins:complete.filter(x=>x.won).length,limitedWins:limited.filter(x=>x.won).length,
+   completeRounds:complete.reduce((a,x)=>a+x.rounds,0)/4,
+   limitedRounds:limited.reduce((a,x)=>a+x.rounds,0)/4});
+ }
+ assert.equal(summary.length,5);
+ console.log('REAL_GEAR_SIGNATURE_BALANCE '+JSON.stringify(summary));
 });

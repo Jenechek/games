@@ -313,7 +313,7 @@ function magicSpellAction(
   state:RuntimeState,
   spellId:MagicSpellId
 ):CombatAction|null{
-  if(state.classState.classId!=='mage'||!state.combat)return null;
+  if(!(['mage','battlemage','druid','paladin'] as const).some(id=>id===state.classState.classId)||!state.combat)return null;
   const spell=magicSpells[spellId];
   if(!canCastMagicSpell(spell,{
     magicLevel:state.skillProgression.magic.level,
@@ -361,7 +361,7 @@ function magicSpellAction(
 }
 
 function chooseAutoMageSpell(state:RuntimeState):MagicSpellId|null{
-  if(state.classState.classId!=='mage'||!state.combat)return null;
+  if(!(['mage','battlemage','druid','paladin'] as const).some(id=>id===state.classState.classId)||!state.combat)return null;
   const focus=state.combat.player.effects?.find(effect=>effect.id==='focus');
   const ward=state.combat.player.effects?.find(effect=>effect.id==='ward');
   return chooseMageAutoSpellId({
@@ -471,11 +471,12 @@ function applyCombatSkillProgression(
 function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Date.now()):CombatState {
   const e=enemies[id];
   const penalties=injuryPenaltySummary(state.injuries);
-  const playerMaxHp=Math.max(1,Math.round(100*penalties.maxHpMultiplier));
+  const classDef=state.classState.classId?playerClasses[state.classState.classId]:null;
+  const playerMaxHp=Math.max(1,Math.round(100*penalties.maxHpMultiplier*(classDef?.hpMultiplier??1)));
+  const playerMaxMana=Math.max(1,Math.round(100*(classDef?.manaMultiplier??1)));
   const scaled=farmingAmbush
     ? scaleFarmingAmbushStats(e.maxHp,e.damage)
     : {maxHp:e.maxHp,damage:e.damage};
-  const classDef=state.classState.classId?playerClasses[state.classState.classId]:null;
   const effectiveSummons=effectiveSummonDefinitions(
     state.classState,
     playerClasses,
@@ -489,18 +490,18 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
     round:1,
     player:{
       id:'player',hp:playerMaxHp,maxHp:playerMaxHp,
-      mana:100,maxMana:100,stamina:100,maxStamina:100,
+      mana:playerMaxMana,maxMana:playerMaxMana,stamina:100,maxStamina:100,
       stunned:false,
       shieldBlock,
       hasShield,
       parry:(.1+(stats.parry??0))*penalties.blockParryMultiplier,
-      evasion:.08+(stats.evasion??0),
-      accuracy:Math.max(0,.85+(stats.accuracy??0)-penalties.accuracyPenalty),
+      evasion:.08+(stats.evasion??0)+(classDef?.evasionBonus??0),
+      accuracy:Math.max(0,.85+(stats.accuracy??0)+(classDef?.accuracyBonus??0)-penalties.accuracyPenalty),
       damage:(18+(stats.damage??0))
         *penalties.physicalAttackMultiplier
         *(classDef?.personalDamageMultiplier??1)
         *weaponDamageMultiplier(state.skillProgression,weaponSkillPath),
-      damageMitigation:loadoutMitigation(state),
+      damageMitigation:combineDiminishingPercentages([loadoutMitigation(state),classDef?.mitigationBonus??0]),
       style:'balanced',
       toxicity:0,
       effects:[]

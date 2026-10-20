@@ -39,7 +39,7 @@ export function addClassCombatXp(
   combatCharacterXp:number,
   summonsParticipated:boolean
 ):{state:ClassState;xp:number}{
-  if(!state.classId||!summonsParticipated)return {state,xp:0};
+  if(!state.classId||(!summonsParticipated&&(state.classId==='mage'||state.classId==='tamer')))return {state,xp:0};
   const xp=Math.max(0,combatCharacterXp)*CLASS_SKILL_COMBAT_XP_SHARE;
   return {
     state:{...state,skill:addSkillXp(state.skill,xp)},

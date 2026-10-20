@@ -133,7 +133,7 @@ export interface MageAutoSpellContext extends MagicSpellAvailabilityContext {
   physicalDamage?:number;
   spellPowerMultiplier?:number;
   enemyHp?:number;
-  combatRole?:'pure-caster'|'hybrid'|'battlemage';
+  combatRole?:'pure-caster'|'hybrid'|'battlemage'|'druid';
 }
 
 export function chooseMageAutoSpellId(
@@ -141,7 +141,7 @@ export function chooseMageAutoSpellId(
 ):MagicSpellId|null{
   const hpRatio=context.maxHp>0?context.hp/context.maxHp:1;
   const healing=magicSpells['arcane-mend'];
-  const isHybrid=context.combatRole==='hybrid'||context.combatRole==='battlemage';
+  const isHybrid=context.combatRole==='hybrid'||context.combatRole==='battlemage'||context.combatRole==='druid';
   if(hpRatio<=(isHybrid?.28:.4)&&canCastMagicSpell(healing,context))return healing.id;
 
   const clamp=(value:number|undefined)=>Number.isFinite(value)
@@ -163,7 +163,7 @@ export function chooseMageAutoSpellId(
   // trapped magic hybrids in a loop while their weak weapon damage did not scale.
   if(spells.length){
     const best=spells[0];
-    const damageFloor=context.combatRole==='battlemage'?.65:.95;
+    const damageFloor=context.combatRole==='battlemage'?.65:context.combatRole==='druid'?.65:.95;
     // Battlemage intentionally alternates viable spells with weapon attacks;
     // other hybrids preserve a higher opportunity-cost threshold.
     if(!isHybrid||best.damage>=physical*damageFloor||physical<=0)return best.id;

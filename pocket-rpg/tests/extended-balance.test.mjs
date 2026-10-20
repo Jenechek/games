@@ -58,6 +58,7 @@ function run(classId,enemyId,level,seed,configuration={}){
     physicalDamage:state.player.damage,
     spellPowerMultiplier:cls.magicPowerMultiplier??1,
     enemyHp:state.enemy.hp,
+    spellbladeActive:state.player.effects.some(e=>e.id==='spellblade'),
     combatRole:classId==='mage'?'pure-caster':classId==='battlemage'?'battlemage':classId==='druid'?'druid':'hybrid'});
    if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
@@ -66,7 +67,8 @@ function run(classId,enemyId,level,seed,configuration={}){
      :spell.effect.kind==='heal'
       ?{kind:'heal',amount:spell.effect.baseAmount*(cls.magicPowerMultiplier??1)}
       :{kind:'buff',id:spell.effect.effectId,magnitude:spell.effect.baseMagnitude,rounds:spell.effect.durationRounds};
-    player.main={type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,effect};
+    player.main={type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,effect,
+      spellblade:classId==='battlemage'&&effect.kind==='damage'&&configuration.withSynergy!==false};
    }
   }
   if(configuration.withAbilities!==false&&player.main.type==='attack'){
@@ -346,4 +348,18 @@ test('100 paired early druid and battlemage spell identity scenarios',()=>{
 test('druid first-tier magic can be used without high-tier spells',()=>{
  assert.equal(chooseMageAutoSpellId({magicLevel:0,mana:100,hp:100,maxHp:100,
   combatRole:'druid',physicalDamage:18,spellPowerMultiplier:1.2}),'arcane-dart');
+});
+
+test('spellblade synergy is verified with 100 paired seeded encounters at four milestones',()=>{
+ const sampleSeeds=Array.from({length:100},(_,i)=>i+6101),report=[];
+ for(const level of [0,10,20,35,70]){
+  const enhanced=sampleSeeds.map(seed=>run('battlemage','old-treant',level,seed));
+  const standard=sampleSeeds.map(seed=>run('battlemage','old-treant',level,seed,{withSynergy:false}));
+  const rounds=r=>r.reduce((a,x)=>a+x.rounds,0)/r.length;
+  report.push({level,withSynergyWins:enhanced.filter(x=>x.won).length,
+   withoutSynergyWins:standard.filter(x=>x.won).length,
+   withSynergyRounds:rounds(enhanced),withoutSynergyRounds:rounds(standard)});
+  assert.equal(enhanced.length,100);assert.equal(standard.length,100);
+ }
+ console.log('SPELLBLADE_100_REPORT '+JSON.stringify(report));
 });

@@ -178,7 +178,7 @@ test('real equipment profiles use exact item stats rather than invented scaling'
  assert.equal(iron.stats.damage,10);assert.equal(rare.stats.damage,16);
  assert.equal(light.stats.mitigation,.05);assert.equal(light.stats.evasion,.08);
  assert.equal(heavy.stats.mitigation,.18);assert.equal(shield.stats.blockChance,.12);
- assert.equal(1-(1-heavy.stats.mitigation)*(1-shield.stats.mitigation),.2456);
+ assert.ok(Math.abs(1-(1-heavy.stats.mitigation)*(1-shield.stats.mitigation)-.2456)<1e-10);
 });
 test('signature loss is measurable across multiple archetypes with real equipment',()=>{
  const configurations=[

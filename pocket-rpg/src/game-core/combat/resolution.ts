@@ -30,7 +30,7 @@ function cloneState(state:CombatState):CombatState {
   };
 }
 function defeated(c:CombatantState):boolean { return c.hp<=0; }
-function effectMagnitude(combatant:CombatantState,id:'might'|'focus'|'ward'|'chill'):number{
+function effectMagnitude(combatant:CombatantState,id:'might'|'focus'|'ward'|'chill'|'spellblade'):number{
   return combatant.effects?.find(effect=>effect.id===id)?.magnitude??0;
 }
 
@@ -55,7 +55,9 @@ function resolveAttack(
     return {hit:false,damage:0};
   }
 
-  let damage=attacker.damage*(1+effectMagnitude(attacker,'might'));
+  const spellblade=effectMagnitude(attacker,'spellblade');
+  let damage=attacker.damage*(1+effectMagnitude(attacker,'might'))*(1+spellblade);
+  if(spellblade>0)attacker.effects=attacker.effects?.filter(effect=>effect.id!=='spellblade');
   if(rng.chance(.1))damage*=1.5;
 
   if(interceptors?.length){
@@ -179,6 +181,10 @@ function applyAction(
       const damage=Math.min(target.hp,Math.max(1,Math.round(amount*(1-resistance)*(1-elemental))));
       actor.mana=Math.max(0,actor.mana-manaCost);
       target.hp=Math.max(0,target.hp-damage);
+      if(action.spellblade&&target.hp>0){
+        const current=actor.effects?.filter(effect=>effect.id!=='spellblade')??[];
+        actor.effects=[...current,{id:'spellblade',magnitude:.35,roundsRemaining:2}];
+      }
       // Opposing elements dispel each other; the hit retains its normal direct damage.
       if(target.hp>0&&damageType==='fire'){
         target.effects=target.effects?.filter(effect=>effect.id!=='chill');

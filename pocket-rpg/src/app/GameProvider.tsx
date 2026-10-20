@@ -327,6 +327,7 @@ function magicSpellAction(
 
   if(spell.effect.kind==='damage'){
     return {type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,
+      spellblade:state.classState.classId==='battlemage',
       effect:{kind:'damage',damageType:spell.effect.damageType,amount:applyMagicEffectSkill(spell.effect.baseAmount*magicPower,state.skillProgression,spell.skillPath)}};
   }
 
@@ -379,6 +380,7 @@ function chooseAutoMageSpell(state:RuntimeState):MagicSpellId|null{
     physicalDamage:state.combat.player.damage,
     spellPowerMultiplier:playerClasses[state.classState.classId!].magicPowerMultiplier??1,
     enemyHp:state.combat.enemy.hp,
+    spellbladeActive:Boolean(state.combat.player.effects?.some(effect=>effect.id==='spellblade')),
     combatRole:state.classState.classId==='mage'?'pure-caster':state.classState.classId==='battlemage'?'battlemage':state.classState.classId==='druid'?'druid':'hybrid'
   });
 }

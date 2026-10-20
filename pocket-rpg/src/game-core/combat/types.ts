@@ -3,7 +3,7 @@ export type MagicDamageType='arcane'|'fire'|'frost';
 export type CombatStyle='balanced'|'aggressive'|'defensive'|'evasive';
 
 export interface CombatEffectState {
-  id:'might'|'focus'|'ward'|'burn'|'chill';
+  id:'might'|'focus'|'ward'|'burn'|'chill'|'spellblade';
   magnitude:number;
   roundsRemaining:number;
 }
@@ -17,6 +17,7 @@ export type CombatAction =
   | {
       type:'magic';
       manaCost:number;
+      spellblade?:boolean;
       skillPath:readonly string[];
       effect:
         | {

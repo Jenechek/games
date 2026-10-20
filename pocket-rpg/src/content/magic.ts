@@ -133,6 +133,7 @@ export interface MageAutoSpellContext extends MagicSpellAvailabilityContext {
   physicalDamage?:number;
   spellPowerMultiplier?:number;
   enemyHp?:number;
+  spellbladeActive?:boolean;
   combatRole?:'pure-caster'|'hybrid'|'battlemage'|'druid';
 }
 
@@ -143,6 +144,7 @@ export function chooseMageAutoSpellId(
   const healing=magicSpells['arcane-mend'];
   const isHybrid=context.combatRole==='hybrid'||context.combatRole==='battlemage'||context.combatRole==='druid';
   if(hpRatio<=(isHybrid?.28:.4)&&canCastMagicSpell(healing,context))return healing.id;
+  if(context.combatRole==='battlemage'&&context.spellbladeActive)return null;
 
   const clamp=(value:number|undefined)=>Number.isFinite(value)
     ?Math.max(0,Math.min(.75,value??0)):0;

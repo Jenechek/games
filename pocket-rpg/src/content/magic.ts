@@ -168,6 +168,14 @@ export function chooseMageAutoSpellId(
     const damageFloor=context.combatRole==='battlemage'?.65:context.combatRole==='druid'?.65:.95;
     // Battlemage intentionally alternates viable spells with weapon attacks;
     // other hybrids preserve a higher opportunity-cost threshold.
+    if(context.combatRole==='battlemage'&&context.enemyHp!==undefined){
+      // Compare two actual turns: spell + a primed weapon hit versus two weapon attacks.
+      // Avoid starting a combo when the weapon already delivers the finishing blow.
+      const hp=Math.max(0,context.enemyHp);
+      const combo=Math.min(hp,best.damage)+Math.min(Math.max(0,hp-best.damage),physical*1.35);
+      const weapons=Math.min(hp,physical*2);
+      if(hp<=physical||combo<=weapons)return null;
+    }
     if(!isHybrid||best.damage>=physical*damageFloor||physical<=0)return best.id;
   }
 

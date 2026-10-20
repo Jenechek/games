@@ -363,3 +363,23 @@ test('spellblade synergy is verified with 100 paired seeded encounters at four m
  }
  console.log('SPELLBLADE_100_REPORT '+JSON.stringify(report));
 });
+
+test('battlemage does not start inefficient two-turn combos',()=>{
+ const c={magicLevel:35,mana:100,hp:100,maxHp:100,combatRole:'battlemage',
+  physicalDamage:40,spellPowerMultiplier:1.12};
+ assert.equal(chooseMageAutoSpellId({...c,enemyHp:15}),null);
+ assert.equal(chooseMageAutoSpellId({...c,enemyHp:100}),null);
+ assert.equal(chooseMageAutoSpellId({...c,physicalDamage:12,enemyHp:100}),'arcane-bolt');
+});
+test('100 paired tactical spellblade battles per stage',()=>{
+ const seeds=Array.from({length:100},(_,i)=>i+7201);
+ for(const level of [0,10,20,35,70]){
+  const enabled=seeds.map(seed=>run('battlemage','old-treant',level,seed));
+  const disabled=seeds.map(seed=>run('battlemage','old-treant',level,seed,{withSynergy:false}));
+  const mean=x=>x.reduce((a,b)=>a+b.rounds,0)/x.length;
+  assert.equal(enabled.length,100);assert.equal(disabled.length,100);
+  console.log('SPELLBLADE_TACTICAL_100 '+JSON.stringify({level,
+   enabledWins:enabled.filter(x=>x.won).length,disabledWins:disabled.filter(x=>x.won).length,
+   enabledRounds:mean(enabled),disabledRounds:mean(disabled)}));
+ }
+});

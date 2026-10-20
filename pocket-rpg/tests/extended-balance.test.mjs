@@ -171,3 +171,34 @@ test('class identity counterfactuals: 12 archetypes, three progression points, f
  assert.equal(signatures.length,15);
  console.log('CLASS_ROLE_ABLATION_REPORT '+JSON.stringify(report));
 });
+
+test('real equipment profiles use exact item stats rather than invented scaling',()=>{
+ const iron=itemDefs['iron-short-sword'],rare=itemDefs['rare-short-sword'];
+ const light=itemDefs['light-armor'],heavy=itemDefs['heavy-armor'],shield=itemDefs['wooden-shield'];
+ assert.equal(iron.stats.damage,10);assert.equal(rare.stats.damage,16);
+ assert.equal(light.stats.mitigation,.05);assert.equal(light.stats.evasion,.08);
+ assert.equal(heavy.stats.mitigation,.18);assert.equal(shield.stats.blockChance,.12);
+ assert.equal(1-(1-heavy.stats.mitigation)*(1-shield.stats.mitigation),.2456);
+});
+test('signature loss is measurable across multiple archetypes with real equipment',()=>{
+ const configurations=[
+  ['mage',{withMagic:false,withSummons:false}],
+  ['tamer',{withSummons:false}],
+  ['druid',{withMagic:false}],
+  ['warrior',{withAbilities:false}],
+  ['guardian',{withAbilities:false}]
+ ];
+ const summary=[];
+ for(const [classId,disabled] of configurations){
+  const complete=[1,11,37,73].map(seed=>run(classId,'old-treant',35,seed));
+  const limited=[1,11,37,73].map(seed=>run(classId,'old-treant',35,seed,disabled));
+  assert.ok(complete.every(x=>x.rounds>=1&&x.rounds<=60));
+  assert.ok(limited.every(x=>x.rounds>=1&&x.rounds<=60));
+  summary.push({classId,
+   completeWins:complete.filter(x=>x.won).length,limitedWins:limited.filter(x=>x.won).length,
+   completeRounds:complete.reduce((a,x)=>a+x.rounds,0)/4,
+   limitedRounds:limited.reduce((a,x)=>a+x.rounds,0)/4});
+ }
+ assert.equal(summary.length,5);
+ console.log('REAL_GEAR_SIGNATURE_BALANCE '+JSON.stringify(summary));
+});

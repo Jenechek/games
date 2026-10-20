@@ -462,3 +462,5 @@ test('arcane bolt advances only its existing arcane skill ancestors',()=>{
   assert.deepEqual(after.restoration,before.restoration);
   assert.deepEqual(after.protection,before.protection);
 });
+
+// Regression: spell selection and progression are verified above before promotion to main.

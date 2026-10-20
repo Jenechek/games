@@ -16,7 +16,7 @@ import type {
 } from './types.js';
 
 function cloneCombatant(combatant:CombatantState):CombatantState{
-  return {...combatant,effects:(combatant.effects??[]).map(effect=>({...effect}))};
+  return {...combatant,elementalResistances:{...combatant.elementalResistances},effects:(combatant.effects??[]).map(effect=>({...effect}))};
 }
 function cloneState(state:CombatState):CombatState {
   return {
@@ -148,7 +148,10 @@ function applyAction(
       const resistance=Number.isFinite(rawResistance)
         ?Math.max(0,Math.min(0.75,rawResistance))
         :0;
-      const damage=Math.min(target.hp,Math.max(1,Math.round(amount*(1-resistance))));
+      const damageType=action.effect.damageType??'arcane';
+      const rawElement=target.elementalResistances?.[damageType]??0;
+      const elemental=Number.isFinite(rawElement)?Math.max(0,Math.min(.75,rawElement)):0;
+      const damage=Math.min(target.hp,Math.max(1,Math.round(amount*(1-resistance)*(1-elemental))));
       actor.mana=Math.max(0,actor.mana-manaCost);
       target.hp=Math.max(0,target.hp-damage);
       return {success:true,damage,magicSkillPath:action.skillPath,magicEffectApplied:true};

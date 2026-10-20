@@ -21,7 +21,7 @@ export const ARCANE_WARD_SKILL_PATH=[
 
 export const ARCANE_BOLT_SKILL_PATH=['magic','arcane','concentration'] as const;
 
-export type MagicSpellId='arcane-focus'|'arcane-mend'|'arcane-ward'|'arcane-bolt';
+export type MagicSpellId='arcane-focus'|'arcane-mend'|'arcane-ward'|'arcane-bolt'|'fire-spark'|'frost-shard';
 
 export type MagicSpellEffect =
   | {
@@ -34,13 +34,13 @@ export type MagicSpellEffect =
       kind:'heal';
       baseAmount:number;
     }
-  | {kind:'damage';baseAmount:number;};
+  | {kind:'damage';baseAmount:number;damageType:'arcane'|'fire'|'frost';};
 
 export interface MagicSpellDefinition {
   id:MagicSpellId;
   label:string;
   manaCost:number;
-  requiredMagicLevel:0|10|20|35;
+  requiredMagicLevel:0|10|20|35|50|70;
   skillPath:readonly string[];
   effect:MagicSpellEffect;
 }
@@ -72,8 +72,12 @@ export const magicSpells:Record<MagicSpellId,MagicSpellDefinition>={
   },
   'arcane-bolt':{
     id:'arcane-bolt',label:'Арканный импульс',manaCost:25,requiredMagicLevel:35,
-    skillPath:ARCANE_BOLT_SKILL_PATH,effect:{kind:'damage',baseAmount:18}
+    skillPath:ARCANE_BOLT_SKILL_PATH,effect:{kind:'damage',baseAmount:18,damageType:'arcane'}
   },
+  'fire-spark':{id:'fire-spark',label:'Огненная искра',manaCost:30,requiredMagicLevel:50,
+    skillPath:ARCANE_BOLT_SKILL_PATH,effect:{kind:'damage',baseAmount:22,damageType:'fire'}},
+  'frost-shard':{id:'frost-shard',label:'Ледяной осколок',manaCost:40,requiredMagicLevel:70,
+    skillPath:ARCANE_BOLT_SKILL_PATH,effect:{kind:'damage',baseAmount:30,damageType:'frost'}},
   'arcane-ward':{
     id:'arcane-ward',
     label:'Магический барьер',
@@ -120,6 +124,8 @@ export function canCastMagicSpell(
 }
 
 export interface MageAutoSpellContext extends MagicSpellAvailabilityContext {
+  magicResistance?:number;
+  elementalResistances?:Partial<Record<'arcane'|'fire'|'frost',number>>;
   focusRoundsRemaining?:number;
   wardRoundsRemaining?:number;
 }
@@ -145,6 +151,15 @@ export function chooseMageAutoSpellId(
     &&canCastMagicSpell(magicSpells['arcane-focus'],context)
   )return 'arcane-focus';
 
-  if(canCastMagicSpell(magicSpells['arcane-bolt'],context))return 'arcane-bolt';
+  const clamp=(v:number|undefined)=>Number.isFinite(v)?Math.max(0,Math.min(.75,v??0)):0;
+  const possible=(['arcane-bolt','fire-spark','frost-shard'] as const)
+    .filter(id=>canCastMagicSpell(magicSpells[id],context));
+  const best=possible.map(id=>{
+    const spell=magicSpells[id],effect=spell.effect;
+    if(effect.kind!=='damage')return {id,score:-1};
+    const estimate=Math.max(1,Math.round(effect.baseAmount*(1-clamp(context.magicResistance))*(1-clamp(context.elementalResistances?.[effect.damageType]))));
+    return {id,score:estimate/spell.manaCost};
+  }).sort((a,b)=>b.score-a.score);
+  if(best.length)return best[0].id;
   return null;
 }

@@ -324,7 +324,7 @@ function magicSpellAction(
 
   if(spell.effect.kind==='damage'){
     return {type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,
-      effect:{kind:'damage',amount:applyMagicEffectSkill(spell.effect.baseAmount,state.skillProgression,spell.skillPath)}};
+      effect:{kind:'damage',damageType:spell.effect.damageType,amount:applyMagicEffectSkill(spell.effect.baseAmount,state.skillProgression,spell.skillPath)}};
   }
 
   if(spell.effect.kind==='heal'){
@@ -370,7 +370,9 @@ function chooseAutoMageSpell(state:RuntimeState):MagicSpellId|null{
     hp:state.combat.player.hp,
     maxHp:state.combat.player.maxHp,
     focusRoundsRemaining:focus?.roundsRemaining,
-    wardRoundsRemaining:ward?.roundsRemaining
+    wardRoundsRemaining:ward?.roundsRemaining,
+    magicResistance:state.combat.enemy.magicResistance,
+    elementalResistances:state.combat.enemy.elementalResistances
   });
 }
 
@@ -506,7 +508,7 @@ function enemyCombat(id:string, state:RuntimeState, farmingAmbush=false, now=Dat
     enemy:{
       id:e.id,hp:scaled.maxHp,maxHp:scaled.maxHp,
       mana:50,maxMana:50,stamina:100,maxStamina:100,
-      stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,damageMitigation:0,style:'balanced',
+      stunned:false,shieldBlock:0,parry:0,evasion:.05,accuracy:.75,damage:scaled.damage,damageMitigation:0,elementalResistances:{...e.elementalResistances},style:'balanced',
       toxicity:0,effects:[]
     },
     summons:prepareSummonsForCombat(state.summons,effectiveSummons,now)

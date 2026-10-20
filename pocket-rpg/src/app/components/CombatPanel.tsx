@@ -41,13 +41,16 @@ export function CombatPanel(){
   const autoSpellId=isMage?chooseMageAutoSpellId({
     ...availabilityContext,
     focusRoundsRemaining:focus?.roundsRemaining,
-    wardRoundsRemaining:ward?.roundsRemaining
+    wardRoundsRemaining:ward?.roundsRemaining,
+    magicResistance:state.combat.enemy.magicResistance,
+    elementalResistances:state.combat.enemy.elementalResistances
   }):null;
 
   return <section>
     <h2>Бой — раунд {state.combat.round}</h2>
     <p>HP: {Math.round(player.hp)}/{player.maxHp} · Враг: {Math.round(state.combat.enemy.hp)}/{state.combat.enemy.maxHp}</p>
     <p>Мана: {Math.round(player.mana)}/{player.maxMana} · Выносливость: {Math.round(player.stamina)}/{player.maxStamina}</p>
+    <p>Сопротивления врага: аркана {Math.round((state.combat.enemy.elementalResistances?.arcane??0)*100)}%, огонь {Math.round((state.combat.enemy.elementalResistances?.fire??0)*100)}%, холод {Math.round((state.combat.enemy.elementalResistances?.frost??0)*100)}%</p>
     <p>Насыщенность зельями: {player.toxicity??0}/100</p>
     {(state.combat.summons??[]).length>0&&<div>
       <strong>Призывы:</strong>

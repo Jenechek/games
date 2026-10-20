@@ -429,3 +429,12 @@ test('magic resistance does not reduce magical self-healing',()=>{
   const r=resolveRound(state,{player:{main:{type:'magic',manaCost:35,skillPath:['magic'],effect:{kind:'heal',amount:25}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
   assert.equal(r.state.player.hp,75);
 });
+
+test('elemental resistance stacks with general resistance without modifying source state',()=>{
+ const s=baseCombat();s.enemy.magicResistance=.2;s.enemy.elementalResistances={fire:.5};
+ const spell=(type)=>({type:'magic',manaCost:25,skillPath:['magic'],effect:{kind:'damage',amount:40,damageType:type}});
+ const x=resolveRound(s,{player:{main:spell('fire')},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ const y=resolveRound(s,{player:{main:spell('frost')},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(x.state.enemy.hp,84);assert.equal(y.state.enemy.hp,68);
+ assert.deepEqual(s.enemy.elementalResistances,{fire:.5});
+});

@@ -6,6 +6,7 @@ import {chooseAutoAction} from '../dist/game-core/combat/auto-ai.js';
 import {chooseAutoClassAbility} from '../dist/content/class-abilities.js';
 import {playerClasses} from '../dist/content/classes.js';
 import {enemies} from '../dist/content/enemies.js';
+import {summarizeBalance,balanceOutliers} from '../dist/game-core/combat/balance-report.js';
 const seeds=[1,3,7,11,17,23,31,43,59,71,89,101,127,151,181,211];
 function fighter(id,hp,damage,accuracy){
  return {id,hp,maxHp:hp,mana:100,maxMana:100,stamina:100,maxStamina:100,
@@ -64,4 +65,40 @@ test('all classes retain an available baseline attack even at zero stamina',()=>
   const r=resolveRound({player,enemy,round:1},{player:{main:{type:'attack'}},enemy:{main:{type:'wait'}}},{chance:()=>true});
   assert.ok(r.state.enemy.hp<100);
  }
+});
+
+test('balance report aggregates all 576 samples into 36 reproducible matchup statistics',()=>{
+ const samples=[];
+ for(const classId of Object.keys(playerClasses))
+  for(const enemyId of Object.keys(enemies))
+   for(const seed of seeds){
+    const b=battle(classId,enemyId,seed);
+    samples.push({classId,enemyId,won:b.won,rounds:b.rounds,remainingHp:b.remainingHp,
+      skillsUsed:b.skillsUsed,staminaSpent:b.spent});
+   }
+ const rows=summarizeBalance(samples);
+ assert.equal(samples.length,576);
+ assert.equal(rows.length,36);
+ for(const row of rows){
+  assert.equal(row.battles,16);
+  assert.ok(row.winRate>=0&&row.winRate<=1);
+  assert.ok(row.avgRounds>0&&row.avgRounds<=60);
+  assert.ok(row.avgRemainingHp>=0);
+  assert.ok(row.avgSkillsUsed>=0);
+  assert.ok(row.avgStaminaSpent>=0);
+ }
+ assert.deepEqual(rows,summarizeBalance([...samples].reverse()));
+ const flags=balanceOutliers(rows);
+ assert.ok(Array.isArray(flags));
+ // Keep observed imbalances visible to CI without assuming equal win rates across enemy levels.
+ console.log('CLASS_BALANCE_REPORT '+JSON.stringify({rows,outliers:flags}));
+});
+test('balance summary rejects invalid measurements and flags extreme matchups',()=>{
+ assert.deepEqual(summarizeBalance([]),[]);
+ assert.throws(()=>summarizeBalance([{classId:'a',enemyId:'b',won:true,rounds:NaN,remainingHp:5,skillsUsed:0,staminaSpent:0}]),/invalid/);
+ const rows=summarizeBalance(Array.from({length:16},(_,i)=>({
+  classId:'a',enemyId:'b',won:i<16,rounds:4,remainingHp:5,skillsUsed:2,staminaSpent:25
+ })));
+ assert.deepEqual(balanceOutliers(rows),['a/b: all wins']);
+ assert.deepEqual(balanceOutliers(rows,17),[]);
 });

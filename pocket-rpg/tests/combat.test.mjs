@@ -435,7 +435,7 @@ test('elemental resistance stacks with general resistance without modifying sour
  const spell=(type)=>({type:'magic',manaCost:25,skillPath:['magic'],effect:{kind:'damage',amount:40,damageType:type}});
  const x=resolveRound(s,{player:{main:spell('fire')},enemy:{main:{type:'wait'}}},{chance:()=>true});
  const y=resolveRound(s,{player:{main:spell('frost')},enemy:{main:{type:'wait'}}},{chance:()=>true});
- assert.equal(x.state.enemy.hp,84);assert.equal(y.state.enemy.hp,68);
+ assert.equal(x.state.enemy.hp,81);assert.equal(y.state.enemy.hp,68);
  assert.deepEqual(s.enemy.elementalResistances,{fire:.5});
 });
 

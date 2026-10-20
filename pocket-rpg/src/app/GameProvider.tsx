@@ -17,6 +17,7 @@ import {
   type InjuryMedicineTier,
   type UiGameState
 } from './game-controller';
+import {classAbilityAction} from '../content/class-abilities';
 import { SeededRng } from '../game-core/rng';
 import type { AttributeId } from '../game-core/types';
 import { locations } from '../content/locations';
@@ -150,6 +151,7 @@ interface Commands {
   travelTo(id:string):void;
   startEncounter():void;
   manualAttack():void;
+  manualClassAbility():void;
   manualCastMagic(spellId:MagicSpellId):void;
   togglePause():void;
   setMode(v:'auto'|'manual'):void;
@@ -753,6 +755,11 @@ export function GameProvider({children}:{children:React.ReactNode}){
         const magic=magicSpellAction(s,autoSpellId);
         if(magic)pc.main=magic;
       }
+      if(!autoSpellId){
+        const ability=classAbilityAction(s.classState.classId,s.classState.skill.level,s.combat.player);
+        if(ability && (ability.effect==='strike'||ability.effect==='heal'&&s.combat.player.hp/s.combat.player.maxHp<.6))
+          pc.main=ability;
+      }
       pc.style=s.style;
       const ec=chooseAutoAction(s.combat,'enemy',rng.current);
       const r=resolveRound(s.combat,{player:pc,enemy:ec},rng.current);
@@ -818,6 +825,36 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(!s.combat)return s;
         const ec=chooseAutoAction(s.combat,'enemy',rng.current);
         const r=resolveRound(s.combat,{player:{main:{type:'attack'},style:s.style},enemy:ec},rng.current);
+        let afterRound:RuntimeState={
+          ...s,
+          combat:r.state,
+          summons:syncSummonsFromCombat(
+            s.summons,
+            r.state.summons??[],
+            Date.now()
+          )
+        };
+        afterRound=applyCombatSkillProgression(afterRound,r.log);
+        if(r.state.player.hp<=0)return applyPlayerDefeat(afterRound);
+        if(r.state.enemy.hp<=0){
+          const enemyLevel=enemies[s.combat.enemy.id]?.level??1;
+          const l=rollLoot({gold:[3,10],drops:[{itemId:'iron-short-sword',chance:.15}]},{luck:s.attributes.luck},rng.current);
+          return awardCombatProgression(
+            {...afterRound,combat:null,combatItemUsedRound:null,loot:l,gold:s.gold+l.gold,log:[...s.log,`Победа. Получено ${l.gold} золота.`]},
+            enemyLevel,
+            (s.combat.summons?.length??0)>0
+          );
+        }
+        return{...afterRound,combatItemUsedRound:null};
+      });
+    },
+    manualClassAbility(){
+      setState(s=>{
+        if(!s.combat)return s;
+        const action=classAbilityAction(s.classState.classId,s.classState.skill.level,s.combat.player);
+        if(!action)return s;
+        const ec=chooseAutoAction(s.combat,'enemy',rng.current);
+        const r=resolveRound(s.combat,{player:{main:action,style:s.style},enemy:ec},rng.current);
         let afterRound:RuntimeState={
           ...s,
           combat:r.state,

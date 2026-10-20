@@ -435,6 +435,30 @@ test('elemental resistance stacks with general resistance without modifying sour
  const spell=(type)=>({type:'magic',manaCost:25,skillPath:['magic'],effect:{kind:'damage',amount:40,damageType:type}});
  const x=resolveRound(s,{player:{main:spell('fire')},enemy:{main:{type:'wait'}}},{chance:()=>true});
  const y=resolveRound(s,{player:{main:spell('frost')},enemy:{main:{type:'wait'}}},{chance:()=>true});
- assert.equal(x.state.enemy.hp,84);assert.equal(y.state.enemy.hp,68);
+ assert.equal(x.state.enemy.hp,81);assert.equal(y.state.enemy.hp,68);
  assert.deepEqual(s.enemy.elementalResistances,{fire:.5});
+});
+
+test('fire spell burns for two ticks without stacking, and source remains unchanged',()=>{
+ const s=baseCombat(); const spell={type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',amount:10,damageType:'fire'}};
+ const a=resolveRound(s,{player:{main:spell},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(a.state.enemy.hp,87);
+ assert.equal(a.state.enemy.effects.find(x=>x.id==='burn').roundsRemaining,1);
+ assert.equal(s.enemy.effects,undefined);
+ const b=resolveRound(a.state,{player:{main:{type:'wait'}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(b.state.enemy.hp,84);
+ assert.equal(b.state.enemy.effects.find(x=>x.id==='burn'),undefined);
+});
+test('chill reduces physical accuracy but does not reduce magical damage',()=>{
+ const s=baseCombat();
+ const a=resolveRound(s,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',amount:10,damageType:'frost'}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(a.state.enemy.effects.some(x=>x.id==='chill'),true);
+ const b=resolveRound(a.state,{player:{main:{type:'wait'}},enemy:{main:{type:'attack'}}},{chance:p=>p>.9});
+ assert.equal(b.state.player.hp,100);
+});
+test('burn finishing an enemy ends combat before the next round',()=>{
+ const s=baseCombat();s.enemy.hp=2;s.enemy.effects=[{id:'burn',magnitude:3,roundsRemaining:1}];
+ const r=resolveRound(s,{player:{main:{type:'wait'}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(r.state.enemy.hp,0);
+ assert.equal(r.log.some(x=>x.action==='burn'&&x.damage===2),true);
 });

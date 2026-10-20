@@ -3,7 +3,7 @@ export type MagicDamageType='arcane'|'fire'|'frost';
 export type CombatStyle='balanced'|'aggressive'|'defensive'|'evasive';
 
 export interface CombatEffectState {
-  id:'might'|'focus'|'ward';
+  id:'might'|'focus'|'ward'|'burn'|'chill';
   magnitude:number;
   roundsRemaining:number;
 }
@@ -69,4 +69,5 @@ export interface CombatLogEntry {
   damage?:number;
   magicSkillPath?:readonly string[];
   magicEffectApplied?:boolean;
+  statusDamage?:number;
 }

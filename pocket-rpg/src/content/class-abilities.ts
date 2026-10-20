@@ -15,10 +15,25 @@ export const classAbilities:Record<PlayerClassId,ClassAbility>={
  battlemage:{label:'Боевой фокус',requiredLevel:10,staminaCost:25,effect:'focus',power:.15},
  druid:{label:'Природное восстановление',requiredLevel:10,staminaCost:30,effect:'heal',power:22}
 };
+export const CLASS_ABILITY_MILESTONES=[10,20,35,50,70,85,100] as const;
+export function classAbilityAtLevel(classId:PlayerClassId,level:number):ClassAbility|null{
+ const base=classAbilities[classId];
+ const tier=CLASS_ABILITY_MILESTONES.filter(value=>level>=value).length;
+ if(tier===0)return null;
+ // One fixed evolution per milestone; no player choices or extra actions.
+ const growth=tier-1;
+ const power=base.effect==='strike'
+  ?Math.min(2.5,base.power+growth*.12)
+  :base.effect==='heal'
+   ?Math.min(45,base.power+growth*4)
+   :Math.min(.2,base.power+growth*.015);
+ return {...base,requiredLevel:CLASS_ABILITY_MILESTONES[tier-1],
+  staminaCost:Math.min(45,base.staminaCost+growth*2),power};
+}
 export function classAbilityAction(classId:PlayerClassId|null,level:number,actor:CombatantState):CombatAction|null{
  if(!classId)return null;
- const ability=classAbilities[classId];
- if(level<ability.requiredLevel||actor.stamina<ability.staminaCost)return null;
+ const ability=classAbilityAtLevel(classId,level);
+ if(!ability||actor.stamina<ability.staminaCost)return null;
  if(ability.effect==='heal'&&actor.hp>=actor.maxHp)return null;
  if(ability.effect==='guard'||ability.effect==='focus'){
   const id=ability.effect==='guard'?'ward':'focus';

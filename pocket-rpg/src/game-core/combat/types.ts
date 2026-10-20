@@ -48,6 +48,7 @@ export interface CombatantState {
   accuracy:number;
   damage:number;
   damageMitigation?:number;
+  magicResistance?:number;
   style?:CombatStyle;
   hasShield?:boolean;
   toxicity?:number;

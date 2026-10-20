@@ -6,7 +6,8 @@ export const playerClasses:Record<PlayerClassId,PlayerClassDefinition>={
     label:'Маг',
     description:'Личный магический боец с Магическим фокусом, лечением и защитным барьером, а также одним защитным элементалем, который полностью перехватывает прошедшие атаки по хозяину.',
     summonLimit:1,
-    personalDamageMultiplier:1,
+    personalDamageMultiplier:0.45,
+    magicPowerMultiplier:1.3,
     summonHpMultiplier:1,
     summonDamageMultiplier:1,
     summonUnlocks:[
@@ -18,7 +19,7 @@ export const playerClasses:Record<PlayerClassId,PlayerClassDefinition>={
     label:'Укротитель',
     description:'Лично слабее в прямом бою, но может держать до трёх усиленных существ.',
     summonLimit:3,
-    personalDamageMultiplier:0.85,
+    personalDamageMultiplier:0.55,
     summonHpMultiplier:1.15,
     summonDamageMultiplier:1.15,
     summonUnlocks:[
@@ -32,9 +33,9 @@ export const playerClasses:Record<PlayerClassId,PlayerClassDefinition>={
   duelist:{id:'duelist',label:'Дуэлянт',description:'Точный боец ближнего боя: высокий шанс попадания и уклонение за счёт защиты.',summonLimit:1,personalDamageMultiplier:1.04,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:0.94,mitigationBonus:0,accuracyBonus:0.12,evasionBonus:0.1,manaMultiplier:1},
   ranger:{id:'ranger',label:'Следопыт',description:'Мобильный стрелок: точность и уклонение, сниженная выживаемость в ближнем бою.',summonLimit:1,personalDamageMultiplier:1.02,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:0.96,mitigationBonus:0,accuracyBonus:0.1,evasionBonus:0.08,manaMultiplier:1},
   assassin:{id:'assassin',label:'Убийца',description:'Высокий физический урон и уклонение при пониженном здоровье.',summonLimit:1,personalDamageMultiplier:1.2,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:0.82,mitigationBonus:0,accuracyBonus:0.07,evasionBonus:0.12,manaMultiplier:1},
-  paladin:{id:'paladin',label:'Паладин',description:'Защитный боец с усиленной маной, здоровьем и умеренным физическим уроном.',summonLimit:1,personalDamageMultiplier:0.93,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:1.16,mitigationBonus:0.1,accuracyBonus:0,evasionBonus:0,manaMultiplier:1.2},
+  paladin:{id:'paladin',label:'Паладин',description:'Защитный боец с усиленной маной, здоровьем и умеренным физическим уроном.',summonLimit:1,personalDamageMultiplier:0.85,magicPowerMultiplier:1.07,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:1.16,mitigationBonus:0.1,accuracyBonus:0,evasionBonus:0,manaMultiplier:1.2},
   berserker:{id:'berserker',label:'Берсерк',description:'Максимальный прямой урон ценой защиты и здоровья.',summonLimit:1,personalDamageMultiplier:1.27,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:0.88,mitigationBonus:0,accuracyBonus:-0.03,evasionBonus:-0.05,manaMultiplier:0.9},
   monk:{id:'monk',label:'Монах',description:'Уклоняющийся боец с точными ударами и умеренным физическим уроном.',summonLimit:1,personalDamageMultiplier:1.02,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:1.02,mitigationBonus:0.03,accuracyBonus:0.09,evasionBonus:0.13,manaMultiplier:1},
-  battlemage:{id:'battlemage',label:'Боевой маг',description:'Гибрид оружия и магии: расширенный запас маны с ценой за физическую защиту.',summonLimit:1,personalDamageMultiplier:0.94,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:0.94,mitigationBonus:0,accuracyBonus:0.03,evasionBonus:0.02,manaMultiplier:1.4},
-  druid:{id:'druid',label:'Друид',description:'Выносливый магический гибрид: больше здоровья и маны, но ниже физический урон.',summonLimit:1,personalDamageMultiplier:0.88,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:1.12,mitigationBonus:0.06,accuracyBonus:0,evasionBonus:0,manaMultiplier:1.25}
+  battlemage:{id:'battlemage',label:'Боевой маг',description:'Гибрид оружия и магии: расширенный запас маны с ценой за физическую защиту.',summonLimit:1,personalDamageMultiplier:0.75,magicPowerMultiplier:1.12,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:0.94,mitigationBonus:0,accuracyBonus:0.03,evasionBonus:0.02,manaMultiplier:1.4},
+  druid:{id:'druid',label:'Друид',description:'Выносливый магический гибрид: больше здоровья и маны, но ниже физический урон.',summonLimit:1,personalDamageMultiplier:0.60,magicPowerMultiplier:1.20,summonHpMultiplier:1,summonDamageMultiplier:1,summonUnlocks:[],hpMultiplier:1.12,mitigationBonus:0.06,accuracyBonus:0,evasionBonus:0,manaMultiplier:1.25}
 };

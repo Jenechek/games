@@ -407,7 +407,7 @@ function applyCombatSkillProgression(
   log:CombatLogEntry[]
 ):RuntimeState{
   const action=log.find(entry=>
-    entry.phase==='player-main'&&entry.action!=='wait'
+    entry.phase==='player-main'&&entry.action!=='wait'&&entry.action!=='burn'
   );
   if(!action)return state;
 

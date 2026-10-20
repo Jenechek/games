@@ -60,7 +60,7 @@ function run(classId,enemyId,level,seed,configuration={}){
     enemyHp:state.enemy.hp,
     spellbladeActive:state.player.effects.some(e=>e.id==='spellblade'),
     combatRole:classId==='mage'?'pure-caster':classId==='battlemage'?'battlemage':classId==='druid'?'druid':'hybrid'});
-   if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
+   if(id && magicSpells[id]){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
      ?{kind:'damage',amount:spell.effect.baseAmount*(cls.magicPowerMultiplier??1),damageType:spell.effect.damageType}
@@ -382,4 +382,19 @@ test('100 paired tactical spellblade battles per stage',()=>{
    enabledWins:enabled.filter(x=>x.won).length,disabledWins:disabled.filter(x=>x.won).length,
    enabledRounds:mean(enabled),disabledRounds:mean(disabled)}));
  }
+});
+
+test('defensive magic and caster action economy: 100 paired encounters per early milestone',()=>{
+ const seeds=Array.from({length:100},(_,i)=>i+8101),report=[];
+ for(const classId of ['mage','druid','battlemage','paladin'])for(const level of [10,20,35]){
+  const full=seeds.map(seed=>run(classId,'old-treant',level,seed));
+  const noMagic=seeds.map(seed=>run(classId,'old-treant',level,seed,{withMagic:false}));
+  const mean=x=>x.reduce((n,y)=>n+y.rounds,0)/x.length;
+  assert.equal(full.length,100);assert.equal(noMagic.length,100);
+  report.push({classId,level,withMagicWins:full.filter(x=>x.won).length,
+    noMagicWins:noMagic.filter(x=>x.won).length,
+    withMagicRounds:mean(full),noMagicRounds:mean(noMagic)});
+ }
+ assert.equal(report.length,12);
+ console.log('DEFENSIVE_MAGIC_100 '+JSON.stringify(report));
 });

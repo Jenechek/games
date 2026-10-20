@@ -488,3 +488,29 @@ test('wolf retains standard physical AI every round',()=>{
  const s=baseCombat();s.enemy.id='young-wolf';s.round=3;
  assert.equal(chooseAutoAction(s,'enemy',{chance:()=>false}).main.type,'attack');
 });
+
+test('fire dispels chill and replaces it with burning',()=>{
+ const c=baseCombat();c.enemy.effects=[{id:'chill',magnitude:.12,roundsRemaining:2}];
+ const r=resolveRound(c,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',damageType:'fire',amount:10}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(r.state.enemy.effects.some(e=>e.id==='chill'),false);
+ assert.equal(r.state.enemy.effects.some(e=>e.id==='burn'),true);
+ assert.equal(r.state.enemy.hp,87);
+});
+test('frost cleanses existing burn and does not trigger burn tick',()=>{
+ const c=baseCombat();c.enemy.effects=[{id:'burn',magnitude:3,roundsRemaining:2}];
+ const r=resolveRound(c,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',damageType:'frost',amount:10}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(r.state.enemy.hp,90);
+ assert.equal(r.state.enemy.effects.some(e=>e.id==='burn'),false);
+ assert.equal(r.state.enemy.effects.some(e=>e.id==='chill'),true);
+});
+test('arcane damage does not cancel an elemental status',()=>{
+ const c=baseCombat();c.enemy.effects=[{id:'burn',magnitude:3,roundsRemaining:2}];
+ const r=resolveRound(c,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',damageType:'arcane',amount:10}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(r.state.enemy.hp,87);
+ assert.equal(r.state.enemy.effects.some(e=>e.id==='burn'),true);
+});
+test('unavailable spell cannot dispel elemental status',()=>{
+ const c=baseCombat();c.player.mana=0;c.enemy.effects=[{id:'burn',magnitude:3,roundsRemaining:2}];
+ const r=resolveRound(c,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',damageType:'frost',amount:10}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+ assert.equal(r.state.enemy.effects.some(e=>e.id==='burn'),true);
+});

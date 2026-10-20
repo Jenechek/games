@@ -145,6 +145,8 @@ export function chooseMageAutoSpellId(
   const isHybrid=context.combatRole==='hybrid'||context.combatRole==='battlemage'||context.combatRole==='druid';
   if(hpRatio<=(isHybrid?.28:.4)&&canCastMagicSpell(healing,context))return healing.id;
   if(context.combatRole==='battlemage'&&context.spellbladeActive)return null;
+  // At low magic tiers ward/focus are optional: do not spend repeated turns
+  // refreshing them while basic weapon attacks can finish an encounter.
 
   const clamp=(value:number|undefined)=>Number.isFinite(value)
     ?Math.max(0,Math.min(.75,value??0)):0;
@@ -185,7 +187,7 @@ export function chooseMageAutoSpellId(
 
   // Focus enhances accuracy, not spell damage. Avoid wasting a main action
   // on focus if offensive spells already outperform physical attacks.
-  if(!spells.length&&(physical>0||context.physicalDamage===undefined)&&(context.focusRoundsRemaining??0)<=1
+  if(!spells.length&&context.combatRole!=='battlemage'&&(physical>0||context.physicalDamage===undefined)&&(context.focusRoundsRemaining??0)<=1
       &&canCastMagicSpell(magicSpells['arcane-focus'],context))
     return 'arcane-focus';
 

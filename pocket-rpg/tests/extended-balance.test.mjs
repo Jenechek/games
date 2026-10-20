@@ -398,3 +398,14 @@ test('defensive magic and caster action economy: 100 paired encounters per early
  assert.equal(report.length,12);
  console.log('DEFENSIVE_MAGIC_100 '+JSON.stringify(report));
 });
+
+test('early battlemage tempo: 100 reproducible fights at both difficult milestones',()=>{
+ const seeds=Array.from({length:100},(_,i)=>i+9101);
+ for(const level of [10,20]){
+  const fights=seeds.map(seed=>run('battlemage','old-treant',level,seed));
+  assert.equal(fights.length,100);
+  assert.ok(fights.every(fight=>fight.rounds>=1&&fight.rounds<=60));
+  const mean=fights.reduce((sum,fight)=>sum+fight.rounds,0)/100;
+  console.log('EARLY_BATTLEMAGE_TEMPO_100 '+JSON.stringify({level,wins:fights.filter(x=>x.won).length,meanRounds:mean}));
+ }
+});

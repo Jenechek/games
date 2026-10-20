@@ -30,7 +30,7 @@ function cloneState(state:CombatState):CombatState {
   };
 }
 function defeated(c:CombatantState):boolean { return c.hp<=0; }
-function effectMagnitude(combatant:CombatantState,id:'might'|'focus'|'ward'|'chill'):number{
+function effectMagnitude(combatant:CombatantState,id:'might'|'focus'|'ward'|'chill'|'spellblade'):number{
   return combatant.effects?.find(effect=>effect.id===id)?.magnitude??0;
 }
 

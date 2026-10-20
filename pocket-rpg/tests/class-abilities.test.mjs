@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {classAbilities,classAbilityAction,classAbilityAtLevel,CLASS_ABILITY_MILESTONES} from '../dist/content/class-abilities.js';
+import {classAbilities,classAbilityAction,classAbilityAtLevel,CLASS_ABILITY_MILESTONES,unlockedClassAbilities,classAbilityActionByIndex} from '../dist/content/class-abilities.js';
 import {playerClasses} from '../dist/content/classes.js';
 import {resolveRound} from '../dist/game-core/combat/resolution.js';
 const combatant=(id)=>({id,hp:100,maxHp:100,mana:100,maxMana:100,stamina:100,maxStamina:100,stunned:false,shieldBlock:0,parry:0,evasion:0,accuracy:1,damage:20,effects:[]});
@@ -70,5 +70,32 @@ test('each milestone action respects stamina and the one-action round',()=>{
    assert.ok(r.state.player.stamina>=0&&r.state.player.stamina<=100);
    assert.equal(player.stamina,100);
   }
+ }
+});
+
+test('twelve secondary techniques unlock at 35 and grow at 70',()=>{
+ for(const id of Object.keys(classAbilities)){
+  assert.equal(unlockedClassAbilities(id,34).length,1,id);
+  const first=unlockedClassAbilities(id,35),advanced=unlockedClassAbilities(id,70);
+  assert.equal(first.length,2,id);assert.equal(advanced.length,2,id);
+  assert.notEqual(first[0].label,first[1].label,id);
+  assert.equal(first[1].requiredLevel,35,id);
+  assert.equal(advanced[1].requiredLevel,70,id);
+  assert.ok(advanced[1].power>=first[1].power,id);
+  assert.ok(advanced[1].staminaCost>=first[1].staminaCost,id);
+ }
+});
+test('secondary class techniques cost one main turn and honor resources',()=>{
+ for(const id of Object.keys(classAbilities)){
+  const actor=combatant('player');actor.hp=50;
+  assert.equal(classAbilityActionByIndex(id,34,actor,1),null,id);
+  const ability=classAbilityActionByIndex(id,35,actor,1);
+  assert.equal(ability?.type,'class-ability',id);
+  const input={player:actor,enemy:combatant('enemy'),round:1};
+  const r=resolveRound(input,{player:{main:ability},enemy:{main:{type:'wait'}}},{chance:()=>true});
+  assert.equal(r.log.filter(x=>x.phase==='player-main').length,1,id);
+  assert.equal(r.state.player.stamina,100-ability.staminaCost+15,id);
+  const tired=combatant('player');tired.hp=50;tired.stamina=1;
+  assert.equal(classAbilityActionByIndex(id,35,tired,1),null,id);
  }
 });

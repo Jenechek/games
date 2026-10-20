@@ -58,7 +58,7 @@ function run(classId,enemyId,level,seed,configuration={}){
     physicalDamage:state.player.damage,
     spellPowerMultiplier:cls.magicPowerMultiplier??1,
     enemyHp:state.enemy.hp,
-    combatRole:classId==='mage'?'pure-caster':classId==='battlemage'?'battlemage':'hybrid'});
+    combatRole:classId==='mage'?'pure-caster':classId==='battlemage'?'battlemage':classId==='druid'?'druid':'hybrid'});
    if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
@@ -328,4 +328,22 @@ test('early magic progression: 100 paired battles per caster at levels 0 10 20 3
  assert.equal(report.length,16);
  assert.ok(report.every(row=>row.fullRounds>=1&&row.fullRounds<=60));
  console.log('EARLY_MAGIC_100_REPORT '+JSON.stringify(report));
+});
+
+test('100 paired early druid and battlemage spell identity scenarios',()=>{
+ const sampleSeeds=Array.from({length:100},(_,i)=>i+5001);
+ for(const classId of ['druid','battlemage'])for(const level of [0,10,20,35]){
+  const active=sampleSeeds.map(seed=>run(classId,'old-treant',level,seed));
+  const disabled=sampleSeeds.map(seed=>run(classId,'old-treant',level,seed,{withMagic:false}));
+  const avg=a=>a.reduce((n,v)=>n+v.rounds,0)/a.length;
+  assert.equal(active.length,100);assert.equal(disabled.length,100);
+  assert.ok(active.every(v=>Number.isFinite(v.rounds)&&v.rounds<=60));
+  console.log('EARLY_CASTER_ROLE_100 '+JSON.stringify({classId,level,
+   activeWins:active.filter(x=>x.won).length,disabledWins:disabled.filter(x=>x.won).length,
+   activeRounds:avg(active),disabledRounds:avg(disabled)}));
+ }
+});
+test('druid first-tier magic can be used without high-tier spells',()=>{
+ assert.equal(chooseMageAutoSpellId({magicLevel:0,mana:100,hp:100,maxHp:100,
+  combatRole:'druid',physicalDamage:18,spellPowerMultiplier:1.2}),'arcane-dart');
 });

@@ -40,7 +40,7 @@ function resolveAttack(
   rng:SeededRng,
   interceptors=undefined as CombatState['summons']
 ):{hit:boolean;interceptorId?:string;damage:number} {
-  const accuracy=Math.max(0,attacker.accuracy+effectMagnitude(attacker,'focus'));
+  const accuracy=Math.max(0,attacker.accuracy+effectMagnitude(attacker,'focus'))*(1-effectMagnitude(attacker,'chill'));
   const evasion=effectiveEvasion(target.evasion,accuracy);
   if(!rng.chance(Math.max(0,Math.min(1,accuracy*(1-evasion))))){
     return {hit:false,damage:0};
@@ -154,6 +154,16 @@ function applyAction(
       const damage=Math.min(target.hp,Math.max(1,Math.round(amount*(1-resistance)*(1-elemental))));
       actor.mana=Math.max(0,actor.mana-manaCost);
       target.hp=Math.max(0,target.hp-damage);
+      // Status applied only to surviving targets and never stacks in strength.
+      if(target.hp>0&&(damageType==='fire'||damageType==='frost')){
+        const statusId=damageType==='fire'?'burn':'chill';
+        const magnitude=damageType==='fire'?3:0.12;
+        const existing=target.effects?.find(effect=>effect.id===statusId);
+        if(existing){
+          existing.magnitude=Math.max(existing.magnitude,magnitude);
+          existing.roundsRemaining=Math.max(existing.roundsRemaining,2);
+        }else target.effects=[...(target.effects??[]),{id:statusId,magnitude,roundsRemaining:2}];
+      }
       return {success:true,damage,magicSkillPath:action.skillPath,magicEffectApplied:true};
     }
 
@@ -199,7 +209,10 @@ function applyAction(
   return {success:true,damage:0};
 }
 
-function endRound(combatant:CombatantState):void{
+function endRound(combatant:CombatantState):number{
+  const burn=combatant.effects?.find(effect=>effect.id==='burn');
+  const damage=burn?Math.min(combatant.hp,Math.max(0,Math.round(burn.magnitude))):0;
+  combatant.hp=Math.max(0,combatant.hp-damage);
   combatant.mana=Math.min(combatant.maxMana,combatant.mana+combatant.maxMana*.15);
   combatant.stamina=Math.min(combatant.maxStamina,combatant.stamina+combatant.maxStamina*.15);
   combatant.stunned=false;
@@ -207,6 +220,7 @@ function endRound(combatant:CombatantState):void{
   combatant.effects=(combatant.effects??[])
     .map(effect=>({...effect,roundsRemaining:effect.roundsRemaining-1}))
     .filter(effect=>effect.roundsRemaining>0);
+  return damage;
 }
 
 export function resolveRound(
@@ -280,8 +294,11 @@ export function resolveRound(
 
   if(defeated(state.player)||defeated(state.enemy))return {state,log};
 
-  endRound(state.player);
-  endRound(state.enemy);
+  const playerBurn=endRound(state.player);
+  const enemyBurn=endRound(state.enemy);
+  if(playerBurn>0)log.push({phase:'player-main',action:'burn',damage:playerBurn,statusDamage:playerBurn});
+  if(enemyBurn>0)log.push({phase:'enemy-main',action:'burn',damage:enemyBurn,statusDamage:enemyBurn});
+  if(defeated(state.player)||defeated(state.enemy))return {state,log};
   for(const summon of state.summons??[])endSummonRound(summon);
   state.round+=1;
   return {state,log};

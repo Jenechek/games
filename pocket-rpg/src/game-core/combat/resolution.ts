@@ -154,6 +154,12 @@ function applyAction(
       const damage=Math.min(target.hp,Math.max(1,Math.round(amount*(1-resistance)*(1-elemental))));
       actor.mana=Math.max(0,actor.mana-manaCost);
       target.hp=Math.max(0,target.hp-damage);
+      // Opposing elements dispel each other; the hit retains its normal direct damage.
+      if(target.hp>0&&damageType==='fire'){
+        target.effects=target.effects?.filter(effect=>effect.id!=='chill');
+      }else if(target.hp>0&&damageType==='frost'){
+        target.effects=target.effects?.filter(effect=>effect.id!=='burn');
+      }
       // Status applied only to surviving targets and never stacks in strength.
       if(target.hp>0&&(damageType==='fire'||damageType==='frost')){
         const statusId=damageType==='fire'?'burn':'chill';

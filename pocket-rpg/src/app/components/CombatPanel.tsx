@@ -23,7 +23,7 @@ export function CombatPanel(){
   if(!state.combat)return null;
   const potionStacks=state.inventory.stacks.filter(stack=>Boolean(itemDefs[stack.itemId]?.combatUse));
   const itemUsed=state.combatItemUsedRound===state.combat.round;
-  const isMage=state.classState.classId==='mage';
+  const isMage=['mage','battlemage','druid','paladin'].includes(state.classState.classId??'');
   const magicLevel=state.skillProgression.magic.level;
   const player=state.combat.player;
   const focus=player.effects?.find(effect=>effect.id==='focus');

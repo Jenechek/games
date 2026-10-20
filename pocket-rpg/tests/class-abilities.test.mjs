@@ -7,7 +7,7 @@ const combatant=(id)=>({id,hp:100,maxHp:100,mana:100,maxMana:100,stamina:100,max
 test('every class has an active ability unlocked at mastery level 10',()=>{
  assert.deepEqual(Object.keys(classAbilities).sort(),Object.keys(playerClasses).sort());
  for(const id of Object.keys(playerClasses)){
-  const actor=combatant('player');
+  const actor=combatant('player');actor.hp=60;
   assert.equal(classAbilityAction(id,9,actor),null);
   assert.equal(classAbilityAction(id,10,actor)?.type,'class-ability',id);
  }

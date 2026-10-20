@@ -143,7 +143,12 @@ function applyAction(
       if(!Number.isFinite(amount)||amount<=0||target.hp<=0){
         return {success:false,damage:0,magicSkillPath:action.skillPath,magicEffectApplied:false};
       }
-      const damage=Math.min(target.hp,Math.max(1,Math.round(amount)));
+      // Baseline resistance is zero; cap at 75% to prevent immunity.
+      const rawResistance=target.magicResistance??0;
+      const resistance=Number.isFinite(rawResistance)
+        ?Math.max(0,Math.min(0.75,rawResistance))
+        :0;
+      const damage=Math.min(target.hp,Math.max(1,Math.round(amount*(1-resistance))));
       actor.mana=Math.max(0,actor.mana-manaCost);
       target.hp=Math.max(0,target.hp-damage);
       return {success:true,damage,magicSkillPath:action.skillPath,magicEffectApplied:true};

@@ -30,15 +30,45 @@ export function classAbilityAtLevel(classId:PlayerClassId,level:number):ClassAbi
  return {...base,requiredLevel:CLASS_ABILITY_MILESTONES[tier-1],
   staminaCost:Math.min(45,base.staminaCost+growth*2),power};
 }
-export function classAbilityAction(classId:PlayerClassId|null,level:number,actor:CombatantState):CombatAction|null{
- if(!classId)return null;
- const ability=classAbilityAtLevel(classId,level);
+// Fixed secondary techniques are unlocked at level 35 and evolve at 70.
+const SECONDARY:Record<PlayerClassId,{label:string;effect:ClassAbility['effect'];power:number}>={
+ mage:{label:'Арканный разряд',effect:'strike',power:1.25},
+ tamer:{label:'Звериная поддержка',effect:'heal',power:15},
+ warrior:{label:'Стойка ветерана',effect:'guard',power:.12},
+ guardian:{label:'Ответный выпад',effect:'strike',power:1.3},
+ duelist:{label:'Фехтовальная концентрация',effect:'focus',power:.12},
+ ranger:{label:'Уход в укрытие',effect:'guard',power:.12},
+ assassin:{label:'Теневая сосредоточенность',effect:'focus',power:.13},
+ paladin:{label:'Карающий удар',effect:'strike',power:1.35},
+ berserker:{label:'Боевой азарт',effect:'focus',power:.12},
+ monk:{label:'Удар ладонью',effect:'strike',power:1.3},
+ battlemage:{label:'Чародейский удар',effect:'strike',power:1.35},
+ druid:{label:'Лесная защита',effect:'guard',power:.14}
+};
+export function unlockedClassAbilities(classId:PlayerClassId,level:number):ClassAbility[]{
+ const primary=classAbilityAtLevel(classId,level);
+ if(!primary)return [];
+ if(level<35)return [primary];
+ const alternative=SECONDARY[classId],advanced=level>=70;
+ const power=alternative.effect==='strike'
+  ?alternative.power+(advanced?.18:0)
+  :alternative.effect==='heal'
+   ?alternative.power+(advanced?8:0)
+   :Math.min(.2,alternative.power+(advanced?.03:0));
+ return [primary,{...alternative,requiredLevel:advanced?70:35,
+  staminaCost:advanced?36:30,power}];
+}
+export function classAbilityActionByIndex(classId:PlayerClassId|null,level:number,actor:CombatantState,index:number):CombatAction|null{
+ if(!classId||!Number.isInteger(index))return null;
+ const ability=unlockedClassAbilities(classId,level)[index];
  if(!ability||actor.stamina<ability.staminaCost)return null;
  if(ability.effect==='heal'&&actor.hp>=actor.maxHp)return null;
  if(ability.effect==='guard'||ability.effect==='focus'){
-  const id=ability.effect==='guard'?'ward':'focus';
-  const effect=actor.effects?.find(e=>e.id===id);
+  const id=ability.effect==='guard'?'ward':'focus',effect=actor.effects?.find(e=>e.id===id);
   if(effect&&effect.magnitude>=ability.power&&effect.roundsRemaining>=2)return null;
  }
  return {type:'class-ability',staminaCost:ability.staminaCost,effect:ability.effect,power:ability.power};
+}
+export function classAbilityAction(classId:PlayerClassId|null,level:number,actor:CombatantState):CombatAction|null{
+ return classAbilityActionByIndex(classId,level,actor,0);
 }

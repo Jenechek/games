@@ -72,3 +72,39 @@ export function classAbilityActionByIndex(classId:PlayerClassId|null,level:numbe
 export function classAbilityAction(classId:PlayerClassId|null,level:number,actor:CombatantState):CombatAction|null{
  return classAbilityActionByIndex(classId,level,actor,0);
 }
+
+/** Select a single affordable main action without consuming RNG or mutating combat state. */
+export function chooseAutoClassAbility(
+ classId:PlayerClassId|null,level:number,actor:CombatantState,enemy:CombatantState
+):CombatAction|null{
+ if(!classId||actor.hp<=0||enemy.hp<=0)return null;
+ const options=unlockedClassAbilities(classId,level);
+ let best:CombatAction|null=null;
+ let bestScore=0;
+ for(let i=0;i<options.length;i++){
+  const ability=options[i];
+  const action=classAbilityActionByIndex(classId,level,actor,i);
+  if(!action||action.type!=='class-ability')continue;
+  let score=0;
+  if(action.effect==='heal'){
+   const missing=Math.max(0,actor.maxHp-actor.hp);
+   if(actor.hp/actor.maxHp>.65)continue;
+   score=Math.min(missing,action.power)*1.2/action.staminaCost;
+  }else if(action.effect==='strike'){
+   // Compared with the ordinary attack's expected output, factoring target armor.
+   const resist=Math.max(0,Math.min(.75,enemy.damageMitigation??0));
+   const gain=Math.max(0,actor.damage*(action.power-1)*(1-resist));
+   score=gain/action.staminaCost;
+   if(enemy.hp<=actor.damage*(1-resist))score=0;
+  }else{
+   const effectId=action.effect==='guard'?'ward':'focus';
+   const existing=actor.effects?.find(e=>e.id===effectId);
+   if(existing&&existing.roundsRemaining>1)continue;
+   const healthFactor=action.effect==='guard'&&actor.hp/actor.maxHp<.7?1.5:1;
+   score=action.power*25*healthFactor/action.staminaCost;
+  }
+  // Prefer preserving resources unless a tactical improvement is meaningful.
+  if(score>bestScore&&score>=.09){bestScore=score;best=action;}
+ }
+ return best;
+}

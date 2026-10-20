@@ -409,3 +409,17 @@ test('early battlemage tempo: 100 reproducible fights at both difficult mileston
   console.log('EARLY_BATTLEMAGE_TEMPO_100 '+JSON.stringify({level,wins:fights.filter(x=>x.won).length,meanRounds:mean}));
  }
 });
+
+test('early battlemage 100 paired combats assess impact of class abilities',()=>{
+ const seeds=Array.from({length:100},(_,i)=>i+10401);
+ for(const level of [10,20]){
+  const current=seeds.map(seed=>run('battlemage','old-treant',level,seed));
+  const noAbilities=seeds.map(seed=>run('battlemage','old-treant',level,seed,{withAbilities:false}));
+  const summary=rows=>({wins:rows.filter(x=>x.won).length,
+   avgRounds:rows.reduce((total,x)=>total+x.rounds,0)/100});
+  assert.equal(current.length,100);
+  assert.equal(noAbilities.length,100);
+  console.log('BATTLEMAGE_EARLY_FOCUS_100 '+JSON.stringify({level,withAbilities:summary(current),
+   withoutAbilities:summary(noAbilities)}));
+ }
+});

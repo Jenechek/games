@@ -54,7 +54,10 @@ function run(classId,enemyId,level,seed,configuration={}){
    const id=chooseMageAutoSpellId({magicLevel:level,mana:state.player.mana,
     hp:state.player.hp,maxHp:state.player.maxHp,
     focusRoundsRemaining:focus?.roundsRemaining,wardRoundsRemaining:ward?.roundsRemaining,
-    elementalResistances:state.enemy.elementalResistances});
+    elementalResistances:state.enemy.elementalResistances,
+    physicalDamage:state.player.damage,
+    spellPowerMultiplier:cls.magicPowerMultiplier??1,
+    enemyHp:state.enemy.hp});
    if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
@@ -201,4 +204,18 @@ test('signature loss is measurable across multiple archetypes with real equipmen
  }
  assert.equal(summary.length,5);
  console.log('REAL_GEAR_SIGNATURE_BALANCE '+JSON.stringify(summary));
+});
+
+test('caster auto chooses direct damage over unnecessary utility and retains emergency healing',()=>{
+ const base={magicLevel:70,mana:100,hp:100,maxHp:100,physicalDamage:12,spellPowerMultiplier:1.2};
+ const offensive=chooseMageAutoSpellId(base);
+ assert.ok(['arcane-bolt','fire-spark','frost-shard'].includes(offensive));
+ assert.equal(chooseMageAutoSpellId({...base,hp:30}),'arcane-mend');
+ assert.equal(chooseMageAutoSpellId({...base,magicLevel:10,mana:10}),null);
+});
+test('class magic identity remains distinct across archetypes',()=>{
+ const mage=playerClasses.mage,warrior=playerClasses.warrior;
+ assert.ok(mage.personalDamageMultiplier<warrior.personalDamageMultiplier*.5);
+ assert.ok(mage.magicPowerMultiplier>playerClasses.battlemage.magicPowerMultiplier);
+ assert.ok(playerClasses.druid.magicPowerMultiplier>1);
 });

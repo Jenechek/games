@@ -462,3 +462,10 @@ test('arcane bolt advances only its existing arcane skill ancestors',()=>{
   assert.deepEqual(after.restoration,before.restoration);
   assert.deepEqual(after.protection,before.protection);
 });
+
+test('auto mage chooses an efficient element and honors mana limit',()=>{
+ const c={magicLevel:70,mana:100,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2};
+ assert.equal(chooseMageAutoSpellId({...c,elementalResistances:{arcane:.75,fire:.75,frost:0}}),'frost-shard');
+ assert.equal(chooseMageAutoSpellId({...c,elementalResistances:{arcane:0,fire:.75,frost:.75}}),'arcane-bolt');
+ assert.equal(chooseMageAutoSpellId({...c,mana:24}),null);
+});

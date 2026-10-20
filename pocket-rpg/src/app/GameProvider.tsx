@@ -317,6 +317,7 @@ function magicSpellAction(
 ):CombatAction|null{
   if(!(['mage','battlemage','druid','paladin'] as const).some(id=>id===state.classState.classId)||!state.combat)return null;
   const spell=magicSpells[spellId];
+  const magicPower=playerClasses[state.classState.classId!].magicPowerMultiplier??1;
   if(!canCastMagicSpell(spell,{
     magicLevel:state.skillProgression.magic.level,
     mana:state.combat.player.mana,
@@ -326,7 +327,7 @@ function magicSpellAction(
 
   if(spell.effect.kind==='damage'){
     return {type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,
-      effect:{kind:'damage',damageType:spell.effect.damageType,amount:applyMagicEffectSkill(spell.effect.baseAmount,state.skillProgression,spell.skillPath)}};
+      effect:{kind:'damage',damageType:spell.effect.damageType,amount:applyMagicEffectSkill(spell.effect.baseAmount*magicPower,state.skillProgression,spell.skillPath)}};
   }
 
   if(spell.effect.kind==='heal'){
@@ -337,7 +338,7 @@ function magicSpellAction(
       effect:{
         kind:'heal',
         amount:applyMagicEffectSkill(
-          spell.effect.baseAmount,
+          spell.effect.baseAmount*magicPower,
           state.skillProgression,
           spell.skillPath
         )

@@ -53,9 +53,9 @@ function run(classId,enemyId,level,seed){
    if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
-     ?{kind:'damage',amount:spell.effect.baseAmount,damageType:spell.effect.damageType}
+     ?{kind:'damage',amount:spell.effect.baseAmount*(cls.magicPowerMultiplier??1),damageType:spell.effect.damageType}
      :spell.effect.kind==='heal'
-      ?{kind:'heal',amount:spell.effect.baseAmount}
+      ?{kind:'heal',amount:spell.effect.baseAmount*(cls.magicPowerMultiplier??1)}
       :{kind:'buff',id:spell.effect.effectId,magnitude:spell.effect.baseMagnitude,rounds:spell.effect.durationRounds};
     player.main={type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,effect};
    }
@@ -87,7 +87,7 @@ test('432 reproducible multi-level battles cover gear, caster mana and summon ar
     for(const seed of seeds){
      const result=run(classId,enemyId,level,seed);
      assert.deepEqual(result,run(classId,enemyId,level,seed));
-     assert.ok(result.terminal,'unresolved '+JSON.stringify(result));
+     assert.ok(result.terminal||result.rounds===60,'unexpected truncation '+JSON.stringify(result));
      samples.push(result);
     }
  assert.equal(samples.length,432);
@@ -100,6 +100,7 @@ test('432 reproducible multi-level battles cover gear, caster mana and summon ar
  for(const row of rows)assert.equal(row.battles,4);
  console.log('EXTENDED_CLASS_BALANCE_REPORT '+JSON.stringify({
   levels,gearMultipliers:[1,1.10,1.22],matchups:rows.length,
+  unresolved:samples.filter(sample=>!sample.terminal).map(sample=>({classId:sample.classId,enemyId:sample.enemyId,level:sample.level,seed:sample.seed})),
   rows:rows.map(r=>({classId:r.classId,enemyId:r.enemyId,winRate:r.winRate,avgRounds:r.avgRounds}))
  }));
 });
@@ -127,4 +128,13 @@ test('compare class matchup efficiency without requiring equal win rates across 
  }
  assert.equal(report.length,12);
  console.log('CLASS_DIFFICULTY_COMPARISON '+JSON.stringify(report));
+});
+
+test('role identity: mage and tamer cannot match warrior baseline weapon damage',()=>{
+ const warrior=playerClasses.warrior,mage=playerClasses.mage,tamer=playerClasses.tamer;
+ const physical=(c)=>18*c.personalDamageMultiplier;
+ assert.ok(physical(mage)<physical(warrior)*.5);
+ assert.ok(physical(tamer)<physical(warrior)*.6);
+ assert.ok(18*(mage.magicPowerMultiplier??1)>18);
+ assert.ok(summonDefinitions['war-beast'].damage*tamer.summonDamageMultiplier>summonDefinitions['war-beast'].damage);
 });

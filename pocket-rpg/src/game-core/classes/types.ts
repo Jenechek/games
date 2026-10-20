@@ -21,6 +21,7 @@ export interface PlayerClassDefinition {
   summonHpMultiplier:number;
   summonDamageMultiplier:number;
   summonUnlocks:ClassSummonUnlock[];
+  magicPowerMultiplier?:number;
   hpMultiplier?:number;
   mitigationBonus?:number;
   accuracyBonus?:number;

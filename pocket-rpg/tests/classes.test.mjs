@@ -77,7 +77,7 @@ test('tamer effective summons receive fifteen percent HP and damage bonus',()=>{
   );
   assert.equal(effective['war-beast'].maxHp,81);
   assert.equal(effective['war-beast'].damage,14*1.15);
-  assert.equal(playerClasses.tamer.personalDamageMultiplier,0.85);
+  assert.equal(playerClasses.tamer.personalDamageMultiplier,0.55);
 });
 
 test('mage leaves guardian elemental base stats unchanged',()=>{
@@ -97,7 +97,7 @@ test('expanded roster has twelve unique persistent class IDs and balanced modifi
  for(const [id,definition] of Object.entries(playerClasses)){
   assert.equal(definition.id,id);
   assert.ok(definition.label&&definition.description);
-  assert.ok(definition.personalDamageMultiplier>=.8&&definition.personalDamageMultiplier<=1.3);
+  assert.ok(definition.personalDamageMultiplier>=.4&&definition.personalDamageMultiplier<=1.3);
   assert.ok((definition.hpMultiplier??1)>=.8&&(definition.hpMultiplier??1)<=1.35);
   assert.ok((definition.manaMultiplier??1)>=.85&&(definition.manaMultiplier??1)<=1.5);
   assert.ok((definition.mitigationBonus??0)>=0&&(definition.mitigationBonus??0)<=.2);
@@ -116,11 +116,23 @@ test('non-summoning classes level their class skill without creature participati
  }
 });
 test('class archetypes provide distinct strengths without replacing the existing mage or tamer',()=>{
- assert.equal(playerClasses.mage.personalDamageMultiplier,1);
+ assert.equal(playerClasses.mage.personalDamageMultiplier,.45);
  assert.equal(playerClasses.tamer.summonLimit,3);
  assert.ok(playerClasses.guardian.hpMultiplier>playerClasses.assassin.hpMultiplier);
  assert.ok(playerClasses.assassin.personalDamageMultiplier>playerClasses.guardian.personalDamageMultiplier);
  assert.ok(playerClasses.berserker.personalDamageMultiplier>playerClasses.warrior.personalDamageMultiplier);
  assert.ok(playerClasses.battlemage.manaMultiplier>(playerClasses.warrior.manaMultiplier??1));
  assert.ok(playerClasses.paladin.mitigationBonus>(playerClasses.duelist.mitigationBonus??0));
+});
+
+test('specializations beat basic physical symmetry while preserving magic hierarchy',()=>{
+ const mage=playerClasses.mage,warrior=playerClasses.warrior,tamer=playerClasses.tamer;
+ assert.ok(mage.personalDamageMultiplier<warrior.personalDamageMultiplier*.5);
+ assert.ok(tamer.personalDamageMultiplier<warrior.personalDamageMultiplier*.6);
+ assert.ok(playerClasses.druid.personalDamageMultiplier<playerClasses.guardian.personalDamageMultiplier);
+ assert.ok(playerClasses.battlemage.personalDamageMultiplier<warrior.personalDamageMultiplier);
+ assert.ok(mage.magicPowerMultiplier>playerClasses.battlemage.magicPowerMultiplier);
+ assert.ok(playerClasses.druid.magicPowerMultiplier>1);
+ assert.ok(playerClasses.paladin.magicPowerMultiplier>1);
+ assert.ok(mage.summonLimit===1&&tamer.summonLimit===3);
 });

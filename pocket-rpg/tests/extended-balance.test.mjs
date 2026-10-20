@@ -366,7 +366,7 @@ test('spellblade synergy is verified with 100 paired seeded encounters at four m
 
 test('battlemage does not start inefficient two-turn combos',()=>{
  const c={magicLevel:35,mana:100,hp:100,maxHp:100,combatRole:'battlemage',
-  physicalDamage:25,spellPowerMultiplier:1.12};
+  physicalDamage:40,spellPowerMultiplier:1.12};
  assert.equal(chooseMageAutoSpellId({...c,enemyHp:15}),null);
  assert.equal(chooseMageAutoSpellId({...c,enemyHp:100}),null);
  assert.equal(chooseMageAutoSpellId({...c,physicalDamage:12,enemyHp:100}),'arcane-bolt');

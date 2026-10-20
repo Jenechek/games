@@ -363,3 +363,36 @@ test('redundant weaker magic buff does not spend mana or grant magic XP',()=>{
   assert.equal(entry?.success,false);
   assert.equal(entry?.magicEffectApplied,false);
 });
+
+test('direct magic damage bypasses physical defenses and logs magic XP eligibility',()=>{
+  const state=baseCombat();
+  state.enemy.damageMitigation=.9;state.enemy.hasShield=true;
+  state.enemy.shieldBlock=1;state.enemy.evasion=1;state.enemy.parry=1;
+  const result=resolveRound(state,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',amount:12.4}}},enemy:{main:{type:'wait'}}},{chance:()=>false});
+  assert.equal(result.state.enemy.hp,88);
+  assert.equal(result.state.player.mana,45);
+  assert.equal(result.log.find(x=>x.phase==='player-main')?.damage,12);
+  assert.equal(result.log.find(x=>x.phase==='player-main')?.magicEffectApplied,true);
+});
+test('lethal magic stops enemy action and caps reported damage to remaining HP',()=>{
+  const state=baseCombat();state.enemy.hp=7;
+  const result=resolveRound(state,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',amount:50}}},enemy:{main:{type:'attack'}}},{chance:()=>true});
+  assert.equal(result.state.enemy.hp,0);
+  assert.equal(result.log.find(x=>x.phase==='player-main')?.damage,7);
+  assert.equal(result.log.some(x=>x.phase==='enemy-main'),false);
+});
+for(const amount of [0,-4,NaN,Infinity]){
+  test('invalid damage '+String(amount)+' does not consume mana or earn XP',()=>{
+    const state=baseCombat();
+    const result=resolveRound(state,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',amount}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+    assert.equal(result.state.enemy.hp,100);
+    assert.equal(result.state.player.mana,65);
+    assert.equal(result.log.find(x=>x.phase==='player-main')?.magicEffectApplied,false);
+  });
+}
+test('insufficient mana prevents direct magic damage',()=>{
+  const state=baseCombat();state.player.mana=5;
+  const result=resolveRound(state,{player:{main:{type:'magic',manaCost:20,skillPath:['magic'],effect:{kind:'damage',amount:30}}},enemy:{main:{type:'wait'}}},{chance:()=>true});
+  assert.equal(result.state.enemy.hp,100);
+  assert.equal(result.log.find(x=>x.phase==='player-main')?.magicEffectApplied,false);
+});

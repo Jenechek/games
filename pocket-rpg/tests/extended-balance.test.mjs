@@ -50,7 +50,7 @@ function run(classId,enemyId,level,seed){
     hp:state.player.hp,maxHp:state.player.maxHp,
     focusRoundsRemaining:focus?.roundsRemaining,wardRoundsRemaining:ward?.roundsRemaining,
     elementalResistances:state.enemy.elementalResistances});
-   if(id){
+   if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
      ?{kind:'damage',amount:spell.effect.baseAmount,damageType:spell.effect.damageType}

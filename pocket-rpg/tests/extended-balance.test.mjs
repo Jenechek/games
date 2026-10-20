@@ -57,7 +57,8 @@ function run(classId,enemyId,level,seed,configuration={}){
     elementalResistances:state.enemy.elementalResistances,
     physicalDamage:state.player.damage,
     spellPowerMultiplier:cls.magicPowerMultiplier??1,
-    enemyHp:state.enemy.hp});
+    enemyHp:state.enemy.hp,
+    combatRole:classId==='mage'?'pure-caster':'hybrid'});
    if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
@@ -266,4 +267,25 @@ test('100 independently seeded battles for every class/enemy pairing, with 100 p
  assert.ok(ablations.every(x=>x.baseline.wins>=0&&x.baseline.wins<=100));
  console.log('CLASS_STATISTICAL_100_REPORT '+JSON.stringify({seedRange:[1001,1100],
   matchups:report,roleAblations:ablations}));
+});
+
+test('hybrid spells must outperform weapons and conserve healing for emergencies',()=>{
+ const base={magicLevel:70,mana:100,hp:100,maxHp:100,
+  physicalDamage:35,spellPowerMultiplier:1.07,combatRole:'hybrid'};
+ assert.equal(chooseMageAutoSpellId(base),null);
+ assert.equal(chooseMageAutoSpellId({...base,hp:26}),'arcane-mend');
+ assert.notEqual(chooseMageAutoSpellId({...base,combatRole:'pure-caster'}),null);
+});
+test('hybrid role comparison has 100 paired seeds per class',()=>{
+ const seeds=Array.from({length:100},(_,i)=>i+2001);
+ for(const classId of ['paladin','battlemage','druid']){
+  const full=seeds.map(seed=>run(classId,'old-treant',35,seed));
+  const noMagic=seeds.map(seed=>run(classId,'old-treant',35,seed,{withMagic:false}));
+  const avg=x=>x.reduce((sum,r)=>sum+r.rounds,0)/x.length;
+  assert.equal(full.length,100);assert.equal(noMagic.length,100);
+  assert.ok(avg(full)<=60&&avg(noMagic)<=60);
+  console.log('HYBRID_100_RESULT '+JSON.stringify({classId,
+   fullWins:full.filter(x=>x.won).length,withoutMagicWins:noMagic.filter(x=>x.won).length,
+   fullRounds:avg(full),withoutMagicRounds:avg(noMagic)}));
+ }
 });

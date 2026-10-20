@@ -131,6 +131,7 @@ export interface MageAutoSpellContext extends MagicSpellAvailabilityContext {
   physicalDamage?:number;
   spellPowerMultiplier?:number;
   enemyHp?:number;
+  combatRole?:'pure-caster'|'hybrid';
 }
 
 export function chooseMageAutoSpellId(
@@ -138,7 +139,8 @@ export function chooseMageAutoSpellId(
 ):MagicSpellId|null{
   const hpRatio=context.maxHp>0?context.hp/context.maxHp:1;
   const healing=magicSpells['arcane-mend'];
-  if(hpRatio<=.4&&canCastMagicSpell(healing,context))return healing.id;
+  const isHybrid=context.combatRole==='hybrid';
+  if(hpRatio<=(isHybrid?.28:.4)&&canCastMagicSpell(healing,context))return healing.id;
 
   const clamp=(value:number|undefined)=>Number.isFinite(value)
     ?Math.max(0,Math.min(.75,value??0)):0;
@@ -159,7 +161,7 @@ export function chooseMageAutoSpellId(
   // trapped magic hybrids in a loop while their weak weapon damage did not scale.
   if(spells.length){
     const best=spells[0];
-    if(best.damage>=physical*.8||physical<=0)return best.id;
+    if(!isHybrid||best.damage>=physical*.95||physical<=0)return best.id;
   }
 
   if(hpRatio<=.6&&(context.wardRoundsRemaining??0)<=1
@@ -172,5 +174,6 @@ export function chooseMageAutoSpellId(
       &&canCastMagicSpell(magicSpells['arcane-focus'],context))
     return 'arcane-focus';
 
-  return spells.length?spells[0].id:null;
+  // A hybrid retains its ordinary weapon attack when magic has lower expected value.
+  return isHybrid?null:spells.length?spells[0].id:null;
 }

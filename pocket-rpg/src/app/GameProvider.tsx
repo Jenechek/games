@@ -375,7 +375,10 @@ function chooseAutoMageSpell(state:RuntimeState):MagicSpellId|null{
     focusRoundsRemaining:focus?.roundsRemaining,
     wardRoundsRemaining:ward?.roundsRemaining,
     magicResistance:state.combat.enemy.magicResistance,
-    elementalResistances:state.combat.enemy.elementalResistances
+    elementalResistances:state.combat.enemy.elementalResistances,
+    physicalDamage:state.combat.player.damage,
+    spellPowerMultiplier:playerClasses[state.classState.classId!].magicPowerMultiplier??1,
+    enemyHp:state.combat.enemy.hp
   });
 }
 

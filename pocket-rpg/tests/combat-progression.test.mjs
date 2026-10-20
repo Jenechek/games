@@ -324,7 +324,7 @@ test('expanded magic spell registry uses fixed unlock thresholds',()=>{
   assert.equal(isMagicSpellUnlocked(arcaneWardSpell,20),true);
 });
 
-test('magic registry preserves three four-level skill paths and adds offensive spell',()=>{
+test('magic registry preserves established skill paths and adds typed damage spells',()=>{
   assert.deepEqual(ARCANE_FOCUS_SKILL_PATH,[
     'magic','arcane','concentration','arcane-focus'
   ]);
@@ -335,7 +335,7 @@ test('magic registry preserves three four-level skill paths and adds offensive s
     'magic','protection','warding','arcane-ward'
   ]);
   assert.deepEqual(Object.keys(magicSpells),[
-    'arcane-focus','arcane-mend','arcane-bolt','arcane-ward'
+    'arcane-focus','arcane-mend','arcane-bolt','fire-spark','frost-shard','arcane-ward'
   ]);
 });
 
@@ -461,6 +461,13 @@ test('arcane bolt advances only its existing arcane skill ancestors',()=>{
   assert.deepEqual(after['arcane-focus'],before['arcane-focus']);
   assert.deepEqual(after.restoration,before.restoration);
   assert.deepEqual(after.protection,before.protection);
+});
+
+test('auto mage chooses an efficient element and honors mana limit',()=>{
+ const c={magicLevel:70,mana:100,hp:100,maxHp:100,focusRoundsRemaining:2,wardRoundsRemaining:2};
+ assert.equal(chooseMageAutoSpellId({...c,elementalResistances:{arcane:.75,fire:.75,frost:0}}),'frost-shard');
+ assert.equal(chooseMageAutoSpellId({...c,elementalResistances:{arcane:0,fire:.75,frost:.75}}),'arcane-bolt');
+ assert.equal(chooseMageAutoSpellId({...c,mana:24}),null);
 });
 
 // Regression: spell selection and progression are verified above before promotion to main.

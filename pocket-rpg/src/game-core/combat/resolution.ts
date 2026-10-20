@@ -93,6 +93,31 @@ function applyAction(
   magicEffectApplied?:boolean;
 } {
   if(!action)return {success:false,damage:0};
+  if(action.type==='class-ability'){
+    const cost=action.staminaCost;
+    if(!Number.isFinite(cost)||cost<=0||actor.stamina<cost||!Number.isFinite(action.power)||action.power<=0)
+      return {success:false,damage:0};
+    if(action.effect==='heal'&&actor.hp>=actor.maxHp)return {success:false,damage:0};
+    actor.stamina-=cost;
+    if(action.effect==='strike'){
+      const base=Math.max(1,Math.round(actor.damage*action.power));
+      const mitigation=physicalMitigationAfterPenetration(target.damageMitigation??0,0);
+      const damage=Math.min(target.hp,Math.max(1,Math.round(base*(1-mitigation))));
+      target.hp=Math.max(0,target.hp-damage);
+      return {success:true,damage};
+    }
+    if(action.effect==='heal'){
+      actor.hp=Math.min(actor.maxHp,actor.hp+Math.round(action.power));
+    }else{
+      const id=action.effect==='guard'?'ward':'focus';
+      const magnitude=Math.min(.2,action.power);
+      const existing=actor.effects?.find(e=>e.id===id);
+      if(existing){existing.magnitude=Math.max(existing.magnitude,magnitude);
+        existing.roundsRemaining=Math.max(existing.roundsRemaining,3);}
+      else actor.effects=[...(actor.effects??[]),{id,magnitude,roundsRemaining:3}];
+    }
+    return {success:true,damage:0};
+  }
   if(action.type==='heal'){
     actor.hp=Math.min(actor.maxHp,actor.hp+action.amount);
     return {success:true,damage:0};

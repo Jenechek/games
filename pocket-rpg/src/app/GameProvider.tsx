@@ -327,6 +327,7 @@ function magicSpellAction(
 
   if(spell.effect.kind==='damage'){
     return {type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,
+      spellblade:state.classState.classId==='battlemage',
       effect:{kind:'damage',damageType:spell.effect.damageType,amount:applyMagicEffectSkill(spell.effect.baseAmount*magicPower,state.skillProgression,spell.skillPath)}};
   }
 

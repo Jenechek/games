@@ -77,7 +77,7 @@ test('tamer effective summons receive fifteen percent HP and damage bonus',()=>{
   );
   assert.equal(effective['war-beast'].maxHp,81);
   assert.equal(effective['war-beast'].damage,14*1.15);
-  assert.equal(playerClasses.tamer.personalDamageMultiplier,0.85);
+  assert.equal(playerClasses.tamer.personalDamageMultiplier,0.55);
 });
 
 test('mage leaves guardian elemental base stats unchanged',()=>{

@@ -17,7 +17,7 @@ import {
   type InjuryMedicineTier,
   type UiGameState
 } from './game-controller';
-import {classAbilityAction} from '../content/class-abilities';
+import {classAbilityAction,classAbilityActionByIndex} from '../content/class-abilities';
 import { SeededRng } from '../game-core/rng';
 import type { AttributeId } from '../game-core/types';
 import { locations } from '../content/locations';
@@ -151,7 +151,7 @@ interface Commands {
   travelTo(id:string):void;
   startEncounter():void;
   manualAttack():void;
-  manualClassAbility():void;
+  manualClassAbility(index?:number):void;
   manualCastMagic(spellId:MagicSpellId):void;
   togglePause():void;
   setMode(v:'auto'|'manual'):void;
@@ -848,10 +848,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
         return{...afterRound,combatItemUsedRound:null};
       });
     },
-    manualClassAbility(){
+    manualClassAbility(index=0){
       setState(s=>{
         if(!s.combat)return s;
-        const action=classAbilityAction(s.classState.classId,s.classState.skill.level,s.combat.player);
+        const action=classAbilityActionByIndex(s.classState.classId,s.classState.skill.level,s.combat.player,index);
         if(!action)return s;
         const ec=chooseAutoAction(s.combat,'enemy',rng.current);
         const r=resolveRound(s.combat,{player:{main:action,style:s.style},enemy:ec},rng.current);

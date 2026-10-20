@@ -757,7 +757,7 @@ export function GameProvider({children}:{children:React.ReactNode}){
       }
       if(!autoSpellId){
         const ability=classAbilityAction(s.classState.classId,s.classState.skill.level,s.combat.player);
-        if(ability && (ability.effect==='strike'||ability.effect==='heal'&&s.combat.player.hp/s.combat.player.maxHp<.6))
+        if(ability?.type==='class-ability' && (ability.effect==='strike'||ability.effect==='heal'&&s.combat.player.hp/s.combat.player.maxHp<.6))
           pc.main=ability;
       }
       pc.style=s.style;

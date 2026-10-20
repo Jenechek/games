@@ -26,11 +26,11 @@ function summon(id,classDef){
   staminaRecoveryPerRound:def.staminaRecoveryPerRound,role:def.role,
   passiveImmunities:[...def.passiveImmunities]};
 }
-function run(classId,enemyId,level,seed){
+function run(classId,enemyId,level,seed,configuration={}){
  const rng=new SeededRng(seed),cls=playerClasses[classId],enemy=enemies[enemyId];
  const hp=Math.round(100*(cls.hpMultiplier??1));
- const gear=level>=70?1.22:level>=35?1.10:1;
- const defense=level>=70?.12:level>=35?.06:0;
+ const gear=configuration.withGear===false?1:level>=70?1.22:level>=35?1.10:1;
+ const defense=configuration.withGear===false?0:level>=70?.12:level>=35?.06:0;
  const maxMana=Math.round(100*(cls.manaMultiplier??1));
  let state={round:1,
   player:{...unit('player',hp,18*cls.personalDamageMultiplier*gear,.85+(cls.accuracyBonus??0)),
@@ -38,12 +38,12 @@ function run(classId,enemyId,level,seed){
    evasion:Math.max(0,.08+(cls.evasionBonus??0))},
   enemy:{...unit(enemy.id,enemy.maxHp,enemy.damage,.75),mana:50,maxMana:50,
    elementalResistances:{...enemy.elementalResistances}},
-  summons:classId==='mage'?[summon('guardian-elemental',cls)]:
+  summons:configuration.withSummons===false?[]:classId==='mage'?[summon('guardian-elemental',cls)]:
    classId==='tamer'?[summon('war-beast',cls),...(level>=35?[summon('swift-beast',cls)]:[])]:[]};
  let turns=0,spent=0,skillsUsed=0,spellsUsed=0;
  while(turns<60&&state.player.hp>0&&state.enemy.hp>0){
   const player={main:{type:'attack'}};
-  if(casters.has(classId)){
+  if(configuration.withMagic!==false&&casters.has(classId)){
    const focus=state.player.effects.find(e=>e.id==='focus');
    const ward=state.player.effects.find(e=>e.id==='ward');
    const id=chooseMageAutoSpellId({magicLevel:level,mana:state.player.mana,
@@ -60,7 +60,7 @@ function run(classId,enemyId,level,seed){
     player.main={type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,effect};
    }
   }
-  if(player.main.type==='attack'){
+  if(configuration.withAbilities!==false&&player.main.type==='attack'){
    const action=chooseAutoClassAbility(classId,level,state.player,state.enemy);
    if(action)player.main=action;
   }
@@ -137,4 +137,32 @@ test('role identity: mage and tamer cannot match warrior baseline weapon damage'
  assert.ok(physical(tamer)<physical(warrior)*.6);
  assert.ok(18*(mage.magicPowerMultiplier??1)>18);
  assert.ok(summonDefinitions['war-beast'].damage*tamer.summonDamageMultiplier>summonDefinitions['war-beast'].damage);
+});
+
+test('class identity counterfactuals: 12 archetypes, three progression points, feature ablations',()=>{
+ const report=[];
+ for(const classId of Object.keys(playerClasses))for(const level of [10,35,70]){
+  const enemyId='old-treant';
+  const baseline=[1,11,37,73].map(seed=>run(classId,enemyId,level,seed));
+  const withoutAbilities=[1,11,37,73].map(seed=>run(classId,enemyId,level,seed,{withAbilities:false}));
+  const withoutGear=[1,11,37,73].map(seed=>run(classId,enemyId,level,seed,{withGear:false}));
+  const special=classId==='mage'||classId==='tamer'
+   ?[1,11,37,73].map(seed=>run(classId,enemyId,level,seed,{withSummons:false}))
+   :['battlemage','paladin','druid'].includes(classId)
+    ?[1,11,37,73].map(seed=>run(classId,enemyId,level,seed,{withMagic:false}))
+    :null;
+  const metric=x=>({wins:x.filter(v=>v.won).length,unresolved:x.filter(v=>!v.terminal).length,
+   avgRounds:x.reduce((a,v)=>a+v.rounds,0)/x.length});
+  report.push({classId,level,baseline:metric(baseline),noAbilities:metric(withoutAbilities),
+    noGear:metric(withoutGear),noSignature:special?metric(special):null});
+ }
+ assert.equal(report.length,36);
+ assert.ok(report.every(x=>x.baseline.avgRounds>0&&x.baseline.avgRounds<=60));
+ assert.ok(report.every(x=>x.noGear.avgRounds>0&&x.noGear.avgRounds<=60));
+ assert.ok(report.every(x=>x.baseline.wins>=0&&x.baseline.wins<=4));
+ // A counterfactual must never make the base physical damage equal between the mage and warrior.
+ assert.ok(playerClasses.mage.personalDamageMultiplier<playerClasses.warrior.personalDamageMultiplier/2);
+ const signatures=report.filter(x=>x.noSignature);
+ assert.equal(signatures.length,15);
+ console.log('CLASS_ROLE_ABLATION_REPORT '+JSON.stringify(report));
 });

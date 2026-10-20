@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {SeededRng} from '../dist/game-core/rng.js';import {combineDiminishingPercentages,cappedChance,effectiveEvasion} from '../dist/game-core/combat/mitigation.js';import {resolveRound} from '../dist/game-core/combat/resolution.js';
+import {chooseAutoAction} from '../dist/game-core/combat/auto-ai.js';
 const baseCombat=()=>({player:{id:'p',hp:100,maxHp:100,mana:50,maxMana:100,stamina:50,maxStamina:100,stunned:false,shieldBlock:0,parry:0,evasion:0,accuracy:1,damage:20},enemy:{id:'e',hp:100,maxHp:100,mana:50,maxMana:100,stamina:50,maxStamina:100,stunned:false,shieldBlock:0,parry:0,evasion:0,accuracy:1,damage:10},round:1});
 test('resolution order is additional then main',()=>{const selections={player:{additional:{type:'heal',amount:5},main:{type:'attack'}},enemy:{additional:{type:'heal',amount:5},main:{type:'attack'}}};const result=resolveRound(baseCombat(),selections,new SeededRng(1));assert.deepEqual(result.log.map(x=>x.phase),['player-additional','enemy-additional','player-main','enemy-main']);});
 test('defeat stops later queued action',()=>{const c=baseCombat();c.enemy.hp=10;const r=resolveRound(c,{player:{main:{type:'attack'}},enemy:{main:{type:'attack'}}},new SeededRng(1));assert.equal(r.state.enemy.hp,0);assert.equal(r.state.player.hp,100);assert.equal(r.log.some(x=>x.phase==='enemy-main'),false);});
@@ -461,4 +462,29 @@ test('burn finishing an enemy ends combat before the next round',()=>{
  const r=resolveRound(s,{player:{main:{type:'wait'}},enemy:{main:{type:'wait'}}},{chance:()=>true});
  assert.equal(r.state.enemy.hp,0);
  assert.equal(r.log.some(x=>x.action==='burn'&&x.damage===2),true);
+});
+
+test('bandit switches to arcane magic every third round at mana cost',()=>{
+ const s=baseCombat();s.enemy.id='bandit';s.round=3;
+ const choice=chooseAutoAction(s,'enemy',{chance:()=>false});
+ assert.equal(choice.main.type,'magic');assert.equal(choice.main.effect.damageType,'arcane');
+ const r=resolveRound(s,{player:{main:{type:'wait'}},enemy:choice},{chance:()=>true});
+ assert.equal(r.state.player.hp,88);assert.equal(r.state.enemy.mana,45);
+ assert.equal(chooseAutoAction({...s,round:2},'enemy',{chance:()=>false}).main.type,'attack');
+});
+test('treant applies frost chill with its limited enemy spell',()=>{
+ const s=baseCombat();s.enemy.id='old-treant';s.round=3;
+ const choice=chooseAutoAction(s,'enemy',{chance:()=>false});
+ const r=resolveRound(s,{player:{main:{type:'wait'}},enemy:choice},{chance:()=>true});
+ assert.equal(r.state.player.hp,85);
+ assert.equal(r.state.player.effects.some(x=>x.id==='chill'),true);
+ assert.equal(r.state.enemy.mana,35);
+});
+test('enemy special attack falls back to physical when mana is low',()=>{
+ const s=baseCombat();s.enemy.id='old-treant';s.enemy.mana=20;s.round=3;
+ assert.equal(chooseAutoAction(s,'enemy',{chance:()=>false}).main.type,'attack');
+});
+test('wolf retains standard physical AI every round',()=>{
+ const s=baseCombat();s.enemy.id='young-wolf';s.round=3;
+ assert.equal(chooseAutoAction(s,'enemy',{chance:()=>false}).main.type,'attack');
 });

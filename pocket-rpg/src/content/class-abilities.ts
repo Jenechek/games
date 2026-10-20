@@ -97,6 +97,9 @@ export function chooseAutoClassAbility(
    score=gain/action.staminaCost;
    if(enemy.hp<=actor.damage*(1-resist))score=0;
   }else{
+   // Battlemage must not repeatedly consume its only action refreshing focus
+   // when a direct strike or prepared spellblade attack is available.
+   if(classId==='battlemage'&&action.effect==='focus')continue;
    const effectId=action.effect==='guard'?'ward':'focus';
    const existing=actor.effects?.find(e=>e.id===effectId);
    if(existing&&existing.roundsRemaining>1)continue;

@@ -58,7 +58,7 @@ function run(classId,enemyId,level,seed,configuration={}){
     physicalDamage:state.player.damage,
     spellPowerMultiplier:cls.magicPowerMultiplier??1,
     enemyHp:state.enemy.hp,
-    combatRole:classId==='mage'?'pure-caster':'hybrid'});
+    combatRole:classId==='mage'?'pure-caster':classId==='battlemage'?'battlemage':'hybrid'});
    if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
@@ -287,5 +287,29 @@ test('hybrid role comparison has 100 paired seeds per class',()=>{
   console.log('HYBRID_100_RESULT '+JSON.stringify({classId,
    fullWins:full.filter(x=>x.won).length,withoutMagicWins:noMagic.filter(x=>x.won).length,
    fullRounds:avg(full),withoutMagicRounds:avg(noMagic)}));
+ }
+});
+
+test('battlemage uses arcane magic when it is useful but does not replace stronger weapons',()=>{
+ const spellContext={magicLevel:35,mana:100,hp:100,maxHp:100,
+   physicalDamage:30,spellPowerMultiplier:1.12,combatRole:'battlemage'};
+ assert.equal(chooseMageAutoSpellId(spellContext),'arcane-bolt');
+ assert.equal(chooseMageAutoSpellId({...spellContext,combatRole:'hybrid'}),null);
+ assert.equal(chooseMageAutoSpellId({...spellContext,physicalDamage:40}),null);
+ assert.equal(chooseMageAutoSpellId({...spellContext,mana:0}),null);
+});
+test('100 paired battlemage fights by progression tier report signature contribution',()=>{
+ const seeds=Array.from({length:100},(_,i)=>i+3001);
+ for(const level of [10,35,70]){
+  const full=seeds.map(seed=>run('battlemage','old-treant',level,seed));
+  const noMagic=seeds.map(seed=>run('battlemage','old-treant',level,seed,{withMagic:false}));
+  const avg=results=>results.reduce((sum,b)=>sum+b.rounds,0)/results.length;
+  assert.equal(full.length,100);
+  assert.equal(noMagic.length,100);
+  assert.ok(full.every(b=>b.rounds<=60));
+  console.log('BATTLEMAGE_100_TIER '+JSON.stringify({level,
+    battles:100,fullWins:full.filter(b=>b.won).length,
+    noMagicWins:noMagic.filter(b=>b.won).length,
+    fullRounds:avg(full),noMagicRounds:avg(noMagic)}));
  }
 });

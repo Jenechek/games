@@ -168,7 +168,7 @@ export function chooseMageAutoSpellId(
 
   // Focus enhances accuracy, not spell damage. Avoid wasting a main action
   // on focus if offensive spells already outperform physical attacks.
-  if(!spells.length&&physical>0&&(context.focusRoundsRemaining??0)<=1
+  if(!spells.length&&(physical>0||context.physicalDamage===undefined)&&(context.focusRoundsRemaining??0)<=1
       &&canCastMagicSpell(magicSpells['arcane-focus'],context))
     return 'arcane-focus';
 

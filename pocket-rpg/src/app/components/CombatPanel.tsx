@@ -1,5 +1,6 @@
 import React from 'react';
 import {useGame} from '../GameProvider';
+import {classAbilities,classAbilityAction} from '../../content/class-abilities';
 import {itemDefs} from '../../content/items';
 import {normalizedStackClass} from '../../game-core/items/inventory';
 import {summonDefinitions} from '../../content/summons';
@@ -70,6 +71,7 @@ export function CombatPanel(){
     <button onClick={()=>commands.setMode(state.combatMode==='auto'?'manual':'auto')}>{state.combatMode==='auto'?'Ручной режим':'Автобой'}</button>
     {state.combatMode==='manual'&&<>
       <button onClick={commands.manualAttack}>Атаковать</button>
+      {state.classState.classId&&<button disabled={!classAbilityAction(state.classState.classId,state.classState.skill.level,player)} onClick={commands.manualClassAbility}>{classAbilities[state.classState.classId].label} (навык класса 10)</button>}
       {isMage&&<div>
         {Object.values(magicSpells).map(spell=>{
           const unlocked=isMagicSpellUnlocked(spell,magicLevel);

@@ -9,6 +9,7 @@ export interface CombatEffectState {
 }
 
 export type CombatAction =
+  | {type:'class-ability';staminaCost:number;effect:'strike'|'guard'|'heal'|'focus';power:number}
   | {type:'attack'}
   | {type:'heal'; amount:number}
   | {type:'stun'}

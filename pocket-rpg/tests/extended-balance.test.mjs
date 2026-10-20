@@ -53,9 +53,9 @@ function run(classId,enemyId,level,seed){
    if(id && (magicSpells[id].effect.kind==='damage'||(magicSpells[id].effect.kind==='heal'&&state.player.hp/state.player.maxHp<.35))){
     const spell=magicSpells[id];
     const effect=spell.effect.kind==='damage'
-     ?{kind:'damage',amount:spell.effect.baseAmount,damageType:spell.effect.damageType}
+     ?{kind:'damage',amount:spell.effect.baseAmount*(cls.magicPowerMultiplier??1),damageType:spell.effect.damageType}
      :spell.effect.kind==='heal'
-      ?{kind:'heal',amount:spell.effect.baseAmount}
+      ?{kind:'heal',amount:spell.effect.baseAmount*(cls.magicPowerMultiplier??1)}
       :{kind:'buff',id:spell.effect.effectId,magnitude:spell.effect.baseMagnitude,rounds:spell.effect.durationRounds};
     player.main={type:'magic',manaCost:spell.manaCost,skillPath:spell.skillPath,effect};
    }
@@ -128,4 +128,13 @@ test('compare class matchup efficiency without requiring equal win rates across 
  }
  assert.equal(report.length,12);
  console.log('CLASS_DIFFICULTY_COMPARISON '+JSON.stringify(report));
+});
+
+test('role identity: mage and tamer cannot match warrior baseline weapon damage',()=>{
+ const warrior=playerClasses.warrior,mage=playerClasses.mage,tamer=playerClasses.tamer;
+ const physical=(c)=>18*c.personalDamageMultiplier;
+ assert.ok(physical(mage)<physical(warrior)*.5);
+ assert.ok(physical(tamer)<physical(warrior)*.6);
+ assert.ok(18*(mage.magicPowerMultiplier??1)>18);
+ assert.ok(summonDefinitions['war-beast'].damage*tamer.summonDamageMultiplier>summonDefinitions['war-beast'].damage);
 });

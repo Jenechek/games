@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {classAbilities,classAbilityAction,classAbilityAtLevel,CLASS_ABILITY_MILESTONES,unlockedClassAbilities,classAbilityActionByIndex} from '../dist/content/class-abilities.js';
+import {classAbilities,classAbilityAction,classAbilityAtLevel,CLASS_ABILITY_MILESTONES,unlockedClassAbilities,classAbilityActionByIndex,chooseAutoClassAbility} from '../dist/content/class-abilities.js';
 import {playerClasses} from '../dist/content/classes.js';
 import {resolveRound} from '../dist/game-core/combat/resolution.js';
 const combatant=(id)=>({id,hp:100,maxHp:100,mana:100,maxMana:100,stamina:100,maxStamina:100,stunned:false,shieldBlock:0,parry:0,evasion:0,accuracy:1,damage:20,effects:[]});
@@ -97,5 +97,34 @@ test('secondary class techniques cost one main turn and honor resources',()=>{
   assert.equal(r.state.player.stamina,100-ability.staminaCost+15,id);
   const tired=combatant('player');tired.hp=50;tired.stamina=1;
   assert.equal(classAbilityActionByIndex(id,35,tired,1),null,id);
+ }
+});
+
+test('auto tactics evaluate both unlocked abilities and choose efficient attack',()=>{
+ for(const id of ['warrior','guardian','paladin','monk','battlemage']){
+  const actor=combatant('player');actor.hp=90;
+  const enemy=combatant('enemy');enemy.hp=100;enemy.damageMitigation=.1;
+  const choice=chooseAutoClassAbility(id,70,actor,enemy);
+  assert.equal(choice?.type,'class-ability',id);
+  assert.equal(choice.effect,'strike',id);
+ }
+});
+test('auto tactical healing triggers only when hurt and guard avoids redundant buffs',()=>{
+ const enemy=combatant('enemy');
+ const healer=combatant('player');healer.hp=35;
+ assert.equal(chooseAutoClassAbility('druid',35,healer,enemy)?.effect,'heal');
+ healer.hp=100;
+ assert.equal(chooseAutoClassAbility('druid',35,healer,enemy)?.effect,'guard');
+ const guard=combatant('player');guard.effects=[{id:'ward',magnitude:.2,roundsRemaining:3}];
+ assert.equal(chooseAutoClassAbility('guardian',10,guard,enemy),null);
+});
+test('auto class actions preserve inputs and never use unaffordable or locked options',()=>{
+ for(const id of Object.keys(classAbilities)){
+  const actor=combatant('player');actor.hp=40;actor.stamina=0;
+  const enemy=combatant('enemy');
+  const before=structuredClone(actor);
+  assert.equal(chooseAutoClassAbility(id,100,actor,enemy),null,id);
+  assert.equal(chooseAutoClassAbility(id,9,{...actor,stamina:100},enemy),null,id);
+  assert.deepEqual(actor,before,id);
  }
 });

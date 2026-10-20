@@ -379,7 +379,7 @@ function chooseAutoMageSpell(state:RuntimeState):MagicSpellId|null{
     physicalDamage:state.combat.player.damage,
     spellPowerMultiplier:playerClasses[state.classState.classId!].magicPowerMultiplier??1,
     enemyHp:state.combat.enemy.hp,
-    combatRole:state.classState.classId==='mage'?'pure-caster':'hybrid'
+    combatRole:state.classState.classId==='mage'?'pure-caster':state.classState.classId==='battlemage'?'battlemage':'hybrid'
   });
 }
 

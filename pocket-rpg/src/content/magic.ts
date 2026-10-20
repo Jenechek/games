@@ -128,38 +128,49 @@ export interface MageAutoSpellContext extends MagicSpellAvailabilityContext {
   elementalResistances?:Partial<Record<'arcane'|'fire'|'frost',number>>;
   focusRoundsRemaining?:number;
   wardRoundsRemaining?:number;
+  physicalDamage?:number;
+  spellPowerMultiplier?:number;
+  enemyHp?:number;
 }
 
 export function chooseMageAutoSpellId(
   context:MageAutoSpellContext
 ):MagicSpellId|null{
   const hpRatio=context.maxHp>0?context.hp/context.maxHp:1;
+  const healing=magicSpells['arcane-mend'];
+  if(hpRatio<=.4&&canCastMagicSpell(healing,context))return healing.id;
 
-  if(
-    hpRatio<=0.4
-    &&canCastMagicSpell(magicSpells['arcane-mend'],context)
-  )return 'arcane-mend';
+  const clamp=(value:number|undefined)=>Number.isFinite(value)
+    ?Math.max(0,Math.min(.75,value??0)):0;
+  const multiplier=Math.max(0,context.spellPowerMultiplier??1);
+  const physical=Math.max(0,context.physicalDamage??0);
+  const spells=(['arcane-bolt','fire-spark','frost-shard'] as const)
+    .filter(id=>canCastMagicSpell(magicSpells[id],context))
+    .map(id=>{
+      const spell=magicSpells[id];
+      const effect=spell.effect;
+      if(effect.kind!=='damage')return {id,score:-1,damage:0};
+      const damage=Math.max(1,Math.round(effect.baseAmount*multiplier
+        *(1-clamp(context.magicResistance))
+        *(1-clamp(context.elementalResistances?.[effect.damageType]))));
+      return {id,damage,score:damage/spell.manaCost};
+    }).sort((a,b)=>b.score-a.score);
+  // Attack before refreshing utility buffs: utility-only turns previously
+  // trapped magic hybrids in a loop while their weak weapon damage did not scale.
+  if(spells.length){
+    const best=spells[0];
+    if(best.damage>=physical*.8||physical<=0)return best.id;
+  }
 
-  if(
-    hpRatio<=0.75
-    &&(context.wardRoundsRemaining??0)<=1
-    &&canCastMagicSpell(magicSpells['arcane-ward'],context)
-  )return 'arcane-ward';
+  if(hpRatio<=.6&&(context.wardRoundsRemaining??0)<=1
+      &&canCastMagicSpell(magicSpells['arcane-ward'],context))
+    return 'arcane-ward';
 
-  if(
-    (context.focusRoundsRemaining??0)<=1
-    &&canCastMagicSpell(magicSpells['arcane-focus'],context)
-  )return 'arcane-focus';
+  // Focus enhances accuracy, not spell damage. Avoid wasting a main action
+  // on focus if offensive spells already outperform physical attacks.
+  if(!spells.length&&(physical>0||context.physicalDamage===undefined)&&(context.focusRoundsRemaining??0)<=1
+      &&canCastMagicSpell(magicSpells['arcane-focus'],context))
+    return 'arcane-focus';
 
-  const clamp=(v:number|undefined)=>Number.isFinite(v)?Math.max(0,Math.min(.75,v??0)):0;
-  const possible=(['arcane-bolt','fire-spark','frost-shard'] as const)
-    .filter(id=>canCastMagicSpell(magicSpells[id],context));
-  const best=possible.map(id=>{
-    const spell=magicSpells[id],effect=spell.effect;
-    if(effect.kind!=='damage')return {id,score:-1};
-    const estimate=Math.max(1,Math.round(effect.baseAmount*(1-clamp(context.magicResistance))*(1-clamp(context.elementalResistances?.[effect.damageType]))));
-    return {id,score:estimate/spell.manaCost};
-  }).sort((a,b)=>b.score-a.score);
-  if(best.length)return best[0].id;
-  return null;
+  return spells.length?spells[0].id:null;
 }

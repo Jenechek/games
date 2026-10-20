@@ -17,7 +17,7 @@ import {
   type InjuryMedicineTier,
   type UiGameState
 } from './game-controller';
-import {classAbilityAction,classAbilityActionByIndex} from '../content/class-abilities';
+import {classAbilityActionByIndex,chooseAutoClassAbility} from '../content/class-abilities';
 import { SeededRng } from '../game-core/rng';
 import type { AttributeId } from '../game-core/types';
 import { locations } from '../content/locations';
@@ -756,9 +756,10 @@ export function GameProvider({children}:{children:React.ReactNode}){
         if(magic)pc.main=magic;
       }
       if(!autoSpellId){
-        const ability=classAbilityAction(s.classState.classId,s.classState.skill.level,s.combat.player);
-        if(ability?.type==='class-ability' && (ability.effect==='strike'||ability.effect==='heal'&&s.combat.player.hp/s.combat.player.maxHp<.6))
-          pc.main=ability;
+        const ability=chooseAutoClassAbility(
+          s.classState.classId,s.classState.skill.level,s.combat.player,s.combat.enemy
+        );
+        if(ability)pc.main=ability;
       }
       pc.style=s.style;
       const ec=chooseAutoAction(s.combat,'enemy',rng.current);

@@ -1,6 +1,6 @@
 import type { SkillState } from '../progression/skills.js';
 
-export type PlayerClassId='mage'|'tamer';
+export type PlayerClassId='mage'|'tamer'|'warrior'|'guardian'|'duelist'|'ranger'|'assassin'|'paladin'|'berserker'|'monk'|'battlemage'|'druid';
 
 export interface ClassState {
   classId:PlayerClassId|null;
@@ -21,6 +21,11 @@ export interface PlayerClassDefinition {
   summonHpMultiplier:number;
   summonDamageMultiplier:number;
   summonUnlocks:ClassSummonUnlock[];
+  hpMultiplier?:number;
+  mitigationBonus?:number;
+  accuracyBonus?:number;
+  evasionBonus?:number;
+  manaMultiplier?:number;
 }
 
 export interface ClassCombatModifiers {

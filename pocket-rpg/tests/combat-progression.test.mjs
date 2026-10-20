@@ -324,7 +324,7 @@ test('expanded magic spell registry uses fixed unlock thresholds',()=>{
   assert.equal(isMagicSpellUnlocked(arcaneWardSpell,20),true);
 });
 
-test('expanded magic registry declares three distinct four-level skill paths',()=>{
+test('magic registry preserves three four-level skill paths and adds offensive spell',()=>{
   assert.deepEqual(ARCANE_FOCUS_SKILL_PATH,[
     'magic','arcane','concentration','arcane-focus'
   ]);
@@ -335,7 +335,7 @@ test('expanded magic registry declares three distinct four-level skill paths',()
     'magic','protection','warding','arcane-ward'
   ]);
   assert.deepEqual(Object.keys(magicSpells),[
-    'arcane-focus','arcane-mend','arcane-ward'
+    'arcane-focus','arcane-mend','arcane-bolt','arcane-ward'
   ]);
 });
 

@@ -219,3 +219,51 @@ test('class magic identity remains distinct across archetypes',()=>{
  assert.ok(mage.magicPowerMultiplier>playerClasses.battlemage.magicPowerMultiplier);
  assert.ok(playerClasses.druid.magicPowerMultiplier>1);
 });
+
+const STATISTICAL_BATTLE_COUNT=100;
+const statisticalSeeds=Array.from({length:STATISTICAL_BATTLE_COUNT},(_,i)=>i+1001);
+test('100 independently seeded battles for every class/enemy pairing, with 100 paired role ablations',()=>{
+ const allClasses=Object.keys(playerClasses);
+ const report=[];
+ for(const classId of allClasses){
+  for(const enemyId of Object.keys(enemies)){
+   const results=statisticalSeeds.map(seed=>run(classId,enemyId,35,seed));
+   const wins=results.filter(r=>r.won).length;
+   const unresolved=results.filter(r=>!r.terminal).length;
+   const meanRounds=results.reduce((total,r)=>total+r.rounds,0)/STATISTICAL_BATTLE_COUNT;
+   const meanHp=results.reduce((total,r)=>total+r.remainingHp,0)/STATISTICAL_BATTLE_COUNT;
+   assert.equal(results.length,STATISTICAL_BATTLE_COUNT);
+   assert.ok(wins>=0&&wins<=100);
+   assert.ok(meanRounds>=1&&meanRounds<=60);
+   report.push({classId,enemyId,battles:100,winRate:wins/100,unresolved,meanRounds,meanHp});
+  }
+ }
+ assert.equal(report.length,allClasses.length*Object.keys(enemies).length);
+ const ablations=[];
+ const missingSignature={
+  mage:{withMagic:false,withSummons:false},
+  tamer:{withSummons:false},
+  druid:{withMagic:false},
+  battlemage:{withMagic:false},
+  paladin:{withMagic:false},
+  warrior:{withAbilities:false},
+  guardian:{withAbilities:false},
+  duelist:{withAbilities:false},
+  ranger:{withAbilities:false},
+  assassin:{withAbilities:false},
+  berserker:{withAbilities:false},
+  monk:{withAbilities:false}
+ };
+ for(const classId of allClasses){
+  const baseline=statisticalSeeds.map(seed=>run(classId,'old-treant',35,seed));
+  const limited=statisticalSeeds.map(seed=>run(classId,'old-treant',35,seed,missingSignature[classId]));
+  const summarize=(values)=>({wins:values.filter(x=>x.won).length,
+   unresolved:values.filter(x=>!x.terminal).length,
+   meanRounds:values.reduce((total,x)=>total+x.rounds,0)/STATISTICAL_BATTLE_COUNT});
+  ablations.push({classId,battles:100,baseline:summarize(baseline),withoutSignature:summarize(limited)});
+ }
+ assert.equal(ablations.length,allClasses.length);
+ assert.ok(ablations.every(x=>x.baseline.wins>=0&&x.baseline.wins<=100));
+ console.log('CLASS_STATISTICAL_100_REPORT '+JSON.stringify({seedRange:[1001,1100],
+  matchups:report,roleAblations:ablations}));
+});

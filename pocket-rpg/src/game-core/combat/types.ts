@@ -1,4 +1,5 @@
 import type { SummonCombatState } from '../summons/types.js';
+export type MagicDamageType='arcane'|'fire'|'frost';
 export type CombatStyle='balanced'|'aggressive'|'defensive'|'evasive';
 
 export interface CombatEffectState {
@@ -30,6 +31,7 @@ export type CombatAction =
         | {
             kind:'damage';
             amount:number;
+            damageType?:MagicDamageType;
           };
     };
 
@@ -49,6 +51,7 @@ export interface CombatantState {
   damage:number;
   damageMitigation?:number;
   magicResistance?:number;
+  elementalResistances?:Partial<Record<MagicDamageType,number>>;
   style?:CombatStyle;
   hasShield?:boolean;
   toxicity?:number;
